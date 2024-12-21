@@ -62,7 +62,7 @@ def parse_arguments():
     parser.add_argument('--name',
                         type=str,
                         default="librispeech_dummy_benchmark")
-    parser.add_argument('--batch_size', type=int, default=4)
+    parser.add_argument('--batch_size', type=int, default=1)
     parser.add_argument('--num_beams', type=int, default=1)
     parser.add_argument('--debug', action='store_true')
     parser.add_argument('--enable_warmup', action='store_true')
@@ -109,8 +109,8 @@ def remove_tensor_padding(input_tensor,
         assert input_tensor_lengths is None, "input_tensor_lengths should be None when pad_value is provided"
         # Text tensor case: batch, seq_len
         assert torch.all(
-            input_tensor[:, 0] != pad_value
-        ), "First token in each sequence should not be pad_value"
+            input_tensor[:, 0] !=
+            pad_value), "First token in each sequence should not be pad_value"
         assert input_tensor_lengths is None
 
         # Create a mask for all non-pad tokens
@@ -203,9 +203,10 @@ class WhisperEncoding:
 
         logger.debug(f'output info {output_info}')
         outputs = {
-            t.name: torch.empty(tuple(t.shape),
-                                dtype=trt_dtype_to_torch(t.dtype),
-                                device='cuda')
+            t.name:
+            torch.empty(tuple(t.shape),
+                        dtype=trt_dtype_to_torch(t.dtype),
+                        device='cuda')
             for t in output_info
         }
         stream = torch.cuda.current_stream()

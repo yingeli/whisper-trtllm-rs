@@ -98,7 +98,6 @@ def get_encoder_config(model_metadata: dict, dtype: str,
         'max_position_embeddings': model_metadata['n_audio_ctx'],
         'has_position_embedding': True,
         'n_mels': model_metadata['n_mels'],
-        'n_audio_ctx': model_metadata['n_audio_ctx'],
         'vocab_size': model_metadata['n_vocab'],
         'hidden_act': "gelu",
         'num_languages': num_languages,
@@ -170,7 +169,7 @@ def convert_openai_whisper_encoder(
                           torch.cos(scaled_time)],
                          dim=1)
 
-    weights['positional_embedding'] = sinusoids(
+    weights['position_embedding.weight'] = sinusoids(
         model_metadata['n_audio_ctx'],
         model_metadata['n_audio_state']).contiguous()
 
