@@ -1,7 +1,10 @@
+# install requirements first
+pip install -r requirements.txt
+
 INFERENCE_PRECISION=float16
 WEIGHT_ONLY_PRECISION=int8
 MAX_BEAM_WIDTH=4
-MAX_BATCH_SIZE=4
+MAX_BATCH_SIZE=8
 checkpoint_dir=whisper_turbo_weights_${WEIGHT_ONLY_PRECISION}
 output_dir=whisper_turbo_${WEIGHT_ONLY_PRECISION}
 
@@ -12,7 +15,7 @@ python3 convert_checkpoint.py \
                 --weight_only_precision $WEIGHT_ONLY_PRECISION \
                 --output_dir $checkpoint_dir
 
-# Build the large-v3 turbo model using trtllm-build
+# Build the large-v3 model using trtllm-build
 trtllm-build  --checkpoint_dir ${checkpoint_dir}/encoder \
               --output_dir ${output_dir}/encoder \
               --moe_plugin disable \
@@ -21,7 +24,8 @@ trtllm-build  --checkpoint_dir ${checkpoint_dir}/encoder \
               --bert_attention_plugin ${INFERENCE_PRECISION} \
               --max_input_len 3000 --max_seq_len=3000 \
               --context_fmha disable \
-              --paged_kv_cache enable
+              --kv_cache_type continuous \
+              --remove_input_padding disable
 
 trtllm-build  --checkpoint_dir ${checkpoint_dir}/decoder \
               --output_dir ${output_dir}/decoder \
@@ -33,24 +37,11 @@ trtllm-build  --checkpoint_dir ${checkpoint_dir}/decoder \
               --max_encoder_input_len 3000 \
               --gemm_plugin ${INFERENCE_PRECISION} \
               --bert_attention_plugin ${INFERENCE_PRECISION} \
-              --gpt_attention_plugin ${INFERENCE_PRECISION}
-
-trtllm-build  --checkpoint_dir ${checkpoint_dir}/encoder \
-              --output_dir ${output_dir}/encoder \
-              --moe_plugin disable \
-              --max_batch_size 4 \
-              --gemm_plugin disable \
-              --bert_attention_plugin ${INFERENCE_PRECISION} \
-              --max_input_len 3000 --max_seq_len 3000 \
-              --context_fmha disable
-
-trtllm-build  --checkpoint_dir ${checkpoint_dir}/decoder \
-              --output_dir ${output_dir}/decoder \
-              --moe_plugin disable \
-              --max_beam_width ${MAX_BEAM_WIDTH} \
-              --max_batch_size 4 \
-              --max_encoder_input_len 3000 \
-              --gemm_plugin ${INFERENCE_PRECISION} \
-              --bert_attention_plugin ${INFERENCE_PRECISION} \
               --gpt_attention_plugin ${INFERENCE_PRECISION} \
-              --context_fmha disable
+              --context_fmha disable \
+              --kv_cache_type continuous \
+              --remove_input_padding disable
+
+python3 run.py --name single_wav_test --engine_dir $output_dir --input_file assets/1221-135766-0002.wav --use_py_session
+
+python3 run.py --name single_wav_test --engine_dir $output_dir --input_file assets/en-30s.wav --use_py_session

@@ -463,9 +463,9 @@ def decode_wav_file(
     prediction = predictions[0]
 
     # remove all special tokens in the prediction
-    prediction = re.sub(r'<\|.*?\|>', '', prediction)
-    if normalizer:
-        prediction = normalizer(prediction)
+    #prediction = re.sub(r'<\|.*?\|>', '', prediction)
+    #if normalizer:
+    #    prediction = normalizer(prediction)
     print(f"prediction: {prediction}")
     results = [(0, [""], prediction.split())]
     return results, total_duration
