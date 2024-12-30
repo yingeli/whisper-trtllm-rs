@@ -1,18 +1,32 @@
+#pragma once
+
 #include <memory>
+#include <filesystem>
+
+#include "tensorrt_llm/executor/executor.h"
 
 #include "rust/cxx.h"
 
-#include "/home/coder/whisper-trt/TensorRT-LLM/cpp/include/tensorrt_llm/executor/executor.h"
+xxx
 
-namespace tlc = tensorrt_llm::common;
+//namespace tlc = tensorrt_llm::common;
 namespace tle = tensorrt_llm::executor;
 
-inline tle::Executor load_executor(
-    rust::Str model_path
-) {
-    tle::SizeType32 beamWidth = 1;
-    auto config = tle::ExecutorConfig(beamWidth);
-    auto path = static_cast<std::string>(model_path);
-    auto executor = tle::Executor(path, tle::ModelType::kENCODER_DECODER, config);
-    return executor;
+const tle::SizeType32 BEAM_WIDTH = 1;
+
+class Whisper
+{
+private:
+    tle::Executor executor;
+
+public:
+    Whisper(std::filesystem::path const& modelPath)
+        : executor(tle::Executor(modelPath, tle::ModelType::kENCODER_DECODER, tle::ExecutorConfig(BEAM_WIDTH)))
+    {}
+};
+
+inline std::unique_ptr<Whisper> load(rust::Str modelPath) {
+    auto str = static_cast<std::string>(modelPath);
+    auto path = std::filesystem::path(str);
+    return std::make_unique<Whisper>(path);
 }

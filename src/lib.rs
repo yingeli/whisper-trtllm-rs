@@ -1,3 +1,3 @@
-//mod trtllm;
+mod trtllm;
 
 //pub use trtllm::whisper::Whisper;
