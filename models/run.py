@@ -623,6 +623,69 @@ if __name__ == '__main__':
     s += f"total error rate: {total_error_rate:.2f}%\n"
     print(s)
 
+
+    if args.enable_warmup:
+        results, total_duration = decode_dataset(
+            model,
+            dataset,
+            batch_size=args.batch_size,
+            num_beams=args.num_beams,
+            normalizer=normalizer,
+            mel_filters_dir=args.assets_dir,
+            padding_strategy=args.padding_strategy)
+
+    start_time = time.time()
+    if args.input_file:
+        results, total_duration = decode_wav_file(
+            args.input_file,
+            model,
+            text_prefix=args.text_prefix,
+            dtype=args.dtype,
+            batch_size=args.batch_size,
+            num_beams=args.num_beams,
+            mel_filters_dir=args.assets_dir,
+            padding_strategy=args.padding_strategy)
+    else:
+        results, total_duration = decode_dataset(
+            model,
+            dataset,
+            text_prefix=args.text_prefix,
+            dtype=args.dtype,
+            batch_size=args.batch_size,
+            num_beams=args.num_beams,
+            normalizer=normalizer,
+            mel_filters_dir=args.assets_dir,
+            compute_cer=args.compute_cer,
+            padding_strategy=args.padding_strategy)
+    elapsed = time.time() - start_time
+    results = sorted(results)
+
+    Path(args.results_dir).mkdir(parents=True, exist_ok=True)
+    store_transcripts(filename=f"{args.results_dir}/recogs-{args.name}.txt",
+                      texts=results)
+
+    with open(f"{args.results_dir}/errs-{args.name}.txt", "w") as f:
+        total_error_rate = write_error_stats(f,
+                                             "test-set",
+                                             results,
+                                             enable_log=True)
+        if args.accuracy_check and args.dataset == "hf-internal-testing/librispeech_asr_dummy" and not args.input_file:
+            assert total_error_rate <= 2.8, f"Word Error rate using whisper large-v3 model should be 2.40%, but got {total_error_rate}"
+
+    rtf = elapsed / total_duration
+    s = f"RTF: {rtf:.4f}\n"
+    s += f"total_duration: {total_duration:.3f} seconds\n"
+    s += f"({total_duration/3600:.2f} hours)\n"
+    s += f"processing time: {elapsed:.3f} seconds " f"({elapsed/3600:.2f} hours)\n"
+    s += f"batch size: {args.batch_size}\n"
+    s += f"num_beams: {args.num_beams}\n"
+    s += f"total error rate: {total_error_rate:.2f}%\n"
+    print(s)
+
+
+
+
+
     with open(f"{args.results_dir}/rtf-{args.name}.txt", "w") as f:
         f.write(s)
 

@@ -23,4 +23,4 @@ __pycache__/
 models/assets/
 models/whisper*/
 models/tmp/
-models/core.*
+TensorRT-LLM/
