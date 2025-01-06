@@ -23,5 +23,6 @@ __pycache__/
 models/assets/
 models/whisper*/
 models/tmp/
-TensorRT-LLM/
-whisper-trtllm/build
+whisper-trtllm/build/
+whisper-trtllm/TensorRT-LLM/
+whisper-trtllm/cnpy/

@@ -8,7 +8,7 @@ set(TRTLLM_LIB_PATH "${TRTLLM_DIR}/lib/libtensorrt_llm.so")
 set(TRTLLM_PLUGIN_PATH "${TRTLLM_DIR}/lib/libnvinfer_plugin_tensorrt_llm.so")
 set(TRTLLM_INCLUDE_DIR "${TRTLLM_DIR}/include")
 
-set(TensorRT_LIBRARIES "/usr/local/tensorrt/include")
+#set(TensorRT_LIBRARIES "/usr/local/tensorrt/include")
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED TRUE)
@@ -23,4 +23,4 @@ add_library(${PROJECT_NAME} SHARED "whisper.cpp")
 
 target_link_libraries(${PROJECT_NAME} ${TORCH_LIBRARIES} ${TRTLLM_LIB_PATH} ${TRTLLM_PLUGIN_PATH})
 
-include_directories(${PROJECT_NAME} ${TORCH_INCLUDE_DIRS} ${TRTLLM_INCLUDE_DIR} ${TensorRT_LIBRARIES})
+include_directories(${PROJECT_NAME} ${TORCH_INCLUDE_DIRS} ${TRTLLM_INCLUDE_DIR})

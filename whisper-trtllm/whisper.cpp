@@ -1,6 +1,6 @@
 #include "whisper.h"
-#include "tensor.h"
 #include "tensorrt_llm/executor/executor.h"
+#include "tensorrt_llm/runtime/tensorView.h"
 #include <span>
 
 //namespace tlc = tensorrt_llm::common;
@@ -25,8 +25,7 @@ TranscribeResult Whisper::transcribe(
         throw std::runtime_error("Audio is too long");
     }
     auto padding = (CHUNK_SIZE * SAMPLING_RATE) - audio.size();
-    auto melTorch = TorchTensor(mMel.extract(audio, padding).contiguous());
-    auto mel = tle::Tensor(melTorch);
+    auto mel = TorchView::of(mMel.extract(audio, padding).contiguous());
 
     // Create the request
     auto request = tle::Request(prompt, MAX_NEW_TOKENS);
