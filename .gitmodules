@@ -1,7 +1,1 @@
-[submodule "whisper-trtllm/cnpy"]
-	path = whisper-trtllm/cnpy
-	url = https://github.com/rogersce/cnpy.git
-[submodule "whisper-trtllm/TensorRT-LLM"]
-	path = whisper-trtllm/TensorRT-LLM
-	url = https://github.com/NVIDIA/TensorRT-LLM.git
-	branch = master:v0.16.0
+
