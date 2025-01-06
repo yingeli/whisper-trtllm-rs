@@ -448,6 +448,10 @@ def decode_wav_file(
                                               mel_filters_dir=mel_filters_dir)
     mel = mel.type(str_dtype_to_torch(dtype))
     mel = mel.unsqueeze(0)
+
+    print("mel length:", mel.shape[2])
+    print("first 10 items in mel:", mel[0, 0, :10])
+
     # repeat the mel spectrogram to match the batch size
     mel = mel.repeat(batch_size, 1, 1)
     if padding_strategy == "longest":
@@ -458,6 +462,19 @@ def decode_wav_file(
                                         mel.shape[2],
                                         dtype=torch.int32,
                                         device=mel.device)
+    
+    print("features_input_lengths:", features_input_lengths)
+    if isinstance(mel, list):
+        mel_test = [
+            m.transpose(1, 2).type(
+            str_dtype_to_torch("float16")).squeeze(0)
+            for m in mel
+        ]
+    else:
+        mel_test = mel.transpose(1, 2)
+    print("length of mel_test:", len(mel_test))
+    print("first 10 items of mel_test:", mel_test[:10])
+
     predictions = model.process_batch(mel, features_input_lengths, text_prefix,
                                       num_beams)
     prediction = predictions[0]

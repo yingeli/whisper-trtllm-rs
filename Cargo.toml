@@ -6,7 +6,15 @@ edition = "2021"
 [dependencies]
 anyhow = "1.0"
 cxx = { version = "1.0", features = ["c++17"] }
+tokenizers = "0.21"
+mel_spec = "0.2.7"
+ndarray = "0.15.6"
+ndarray-npy = "0.9"
 
 [build-dependencies]
-bindgen = "*"
 cxx-build = "1.0"
+
+[dev-dependencies]
+clap = { version = "4.5.21", features = ["derive"] }
+rand = "0.8.5"
+hound = { version = "3.5.1" }

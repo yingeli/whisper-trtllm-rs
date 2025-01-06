@@ -1,3 +1,4 @@
-mod trtllm;
-
-//pub use trtllm::whisper::Whisper;
+mod sys;
+mod whisper;
+mod spectrogram;
+pub use whisper::Whisper;
