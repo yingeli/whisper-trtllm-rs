@@ -1,1 +1,7 @@
 
+[submodule "cpp/cnpy"]
+	path = cpp/cnpy
+	url = https://github.com/rogersce/cnpy.git
+[submodule "cpp/TensorRT-LLM"]
+	path = cpp/TensorRT-LLM
+	url = https://github.com/NVIDIA/TensorRT-LLM.git
