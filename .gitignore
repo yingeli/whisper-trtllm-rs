@@ -24,6 +24,8 @@ Cargo.lock
 
 __pycache__/
 
+cpp/build/
+
 models/assets/
 models/whisper*/
 models/tmp/

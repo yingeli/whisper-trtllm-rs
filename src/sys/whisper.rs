@@ -8,7 +8,6 @@ static INIT: Once = Once::new();
 
 #[cxx::bridge]
 mod ffi {
-    #[namespace = "tensorrt_llm::executor"]
     #[derive(Copy, Clone, Debug)]
     #[repr(i32)]
     enum BatchingType {
@@ -16,20 +15,23 @@ mod ffi {
         kINFLIGHT = 1,
     }
 
+    #[derive(Copy, Clone, Debug)]
+    struct Config {
+        batchingType: BatchingType,
+    }
+
     unsafe extern "C++" {
-        include!("tensorrt_llm/executor/types.h");
+        include!("whisper.h");
         
-        #[namespace = "tensorrt_llm::executor"]
         type BatchingType;
 
-        #[namespace = "tensorrt_llm::executor"]
-        type Executor;
+        type Config;
 
-        include!("executor.h");
+        type Whisper;
 
-        fn initialize();
+        fn init() -> bool;
 
-        fn executor(model_path: &str, batching_type: BatchingType) -> UniquePtr<Executor>;
+        fn whisper(model_path: &str, config: Config) -> UniquePtr<Whisper>;
     }
 }
 
@@ -53,23 +55,31 @@ impl BatchingType {
     }
 }
 
-pub struct Executor {
-    inner: UniquePtr<ffi::Executor>,
+pub struct Config {
+    pub batching_type: BatchingType,
 }
 
-impl Executor {
-    fn initialize() {
-        ffi::initialize();
+impl Config {
+    fn to_ffi(&self) -> ffi::Config {
+        ffi::Config {
+            batchingType: self.batching_type.to_ffi(),
+        }
     }
+}
 
-    pub fn load<P: AsRef<Path>>(model_path: P, batching_type: BatchingType) -> Result<Self> {
+pub struct Whisper {
+    inner: UniquePtr<ffi::Whisper>,
+}
+
+impl Whisper {
+    pub fn load<P: AsRef<Path>>(model_path: P, config: Config) -> Result<Self> {
         INIT.call_once(|| {
-            Self::initialize();
+            ffi::init();
         });
 
         let model_path = model_path.as_ref();
         let path = model_path.to_str().ok_or_else(|| anyhow!("invalid path: {}", model_path.display()))?;
-        let inner = ffi::executor(path, batching_type.to_ffi());
+        let inner = ffi::whisper(path, config.to_ffi());
 
         Ok(Self { inner })
     }

@@ -7,9 +7,6 @@ edition = "2021"
 anyhow = "1.0"
 cxx = { version = "1.0", features = ["c++17"] }
 tokenizers = "0.21"
-mel_spec = "0.2.7"
-ndarray = "0.15.6"
-ndarray-npy = "0.9"
 
 [build-dependencies]
 cxx-build = "1.0"
