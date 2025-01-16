@@ -109,8 +109,8 @@ def remove_tensor_padding(input_tensor,
         assert input_tensor_lengths is None, "input_tensor_lengths should be None when pad_value is provided"
         # Text tensor case: batch, seq_len
         assert torch.all(
-            input_tensor[:, 0] !=
-            pad_value), "First token in each sequence should not be pad_value"
+            input_tensor[:, 0] != pad_value
+        ), "First token in each sequence should not be pad_value"
         assert input_tensor_lengths is None
 
         # Create a mask for all non-pad tokens
@@ -203,10 +203,9 @@ class WhisperEncoding:
 
         logger.debug(f'output info {output_info}')
         outputs = {
-            t.name:
-            torch.empty(tuple(t.shape),
-                        dtype=trt_dtype_to_torch(t.dtype),
-                        device='cuda')
+            t.name: torch.empty(tuple(t.shape),
+                                dtype=trt_dtype_to_torch(t.dtype),
+                                device='cuda')
             for t in output_info
         }
         stream = torch.cuda.current_stream()
@@ -279,9 +278,6 @@ class WhisperDecoding:
                                              device='cuda')
         decoder_max_input_length = torch.max(decoder_input_lengths).item()
 
-        print("decoder_max_input_length + max_new_tokens:", decoder_max_input_length + max_new_tokens)
-        print("encoder_max_input_length:", encoder_max_input_length)
-
         cross_attention_mask = torch.ones([
             batch_size, decoder_max_input_length + max_new_tokens,
             encoder_max_input_length
@@ -313,9 +309,6 @@ class WhisperDecoding:
 
                 encoder_outputs = remove_tensor_padding(encoder_outputs,
                                                         encoder_output_lens)
-        print ("encoder_outputs:", encoder_outputs.shape)
-        print ("encoder_input_lengths:", encoder_input_lengths.shape)
-        print ("cross_attention_mask:", cross_attention_mask.shape)
         output_ids = self.decoder_generation_session.decode(
             decoder_input_ids,
             decoder_input_lengths,
@@ -419,23 +412,23 @@ class WhisperTRTLLM(object):
                 else:
                     mel = mel.transpose(1, 2)
 
-                cross_attention_masks = torch.ones([
-                    1, 100, 1500]).int().cuda()
-                print("mel shape:", mel.shape)
-                print("mel_input_lengths shape:", mel_input_lengths.shape)
-                print("cross_attention_masks shape:", cross_attention_masks.shape)
+                #cross_attention_masks = torch.ones([
+                #    1, 1500, 100]).int().cuda()
+                #print("mel shape:", mel.shape)
+                #print("mel_input_lengths shape:", mel_input_lengths.shape)
+                #print("cross_attention_masks shape:", cross_attention_masks.shape)
+
                 outputs = self.model_runner_cpp.generate(
                     batch_input_ids=decoder_input_ids,
                     encoder_input_features=mel,
                     encoder_output_lengths=mel_input_lengths // 2,
+                    #cross_attention_masks=cross_attention_masks,
                     max_new_tokens=max_new_tokens,
                     end_id=self.eot_id,
                     pad_id=self.eot_id,
                     num_beams=num_beams,
                     output_sequence_lengths=True,
-                    #cross_attention_masks=cross_attention_masks,
-                    return_dict=True
-                    )
+                    return_dict=True)
                 torch.cuda.synchronize()
                 output_ids = outputs['output_ids'].cpu().numpy().tolist()
         texts = []
@@ -462,10 +455,6 @@ def decode_wav_file(
                                               mel_filters_dir=mel_filters_dir)
     mel = mel.type(str_dtype_to_torch(dtype))
     mel = mel.unsqueeze(0)
-
-    print("mel length:", mel.shape[2])
-    print("first 10 items in mel:", mel[0, 0, :10])
-
     # repeat the mel spectrogram to match the batch size
     mel = mel.repeat(batch_size, 1, 1)
     if padding_strategy == "longest":
@@ -476,27 +465,14 @@ def decode_wav_file(
                                         mel.shape[2],
                                         dtype=torch.int32,
                                         device=mel.device)
-    
-    print("features_input_lengths:", features_input_lengths)
-    if isinstance(mel, list):
-        mel_test = [
-            m.transpose(1, 2).type(
-            str_dtype_to_torch("float16")).squeeze(0)
-            for m in mel
-        ]
-    else:
-        mel_test = mel.transpose(1, 2)
-    print("length of mel_test:", len(mel_test))
-    print("first 10 items of mel_test:", mel_test[:10])
-
     predictions = model.process_batch(mel, features_input_lengths, text_prefix,
                                       num_beams)
     prediction = predictions[0]
 
     # remove all special tokens in the prediction
-    #prediction = re.sub(r'<\|.*?\|>', '', prediction)
-    #if normalizer:
-    #    prediction = normalizer(prediction)
+    prediction = re.sub(r'<\|.*?\|>', '', prediction)
+    if normalizer:
+        prediction = normalizer(prediction)
     print(f"prediction: {prediction}")
     results = [(0, [""], prediction.split())]
     return results, total_duration
@@ -653,69 +629,6 @@ if __name__ == '__main__':
     s += f"num_beams: {args.num_beams}\n"
     s += f"total error rate: {total_error_rate:.2f}%\n"
     print(s)
-
-
-    if args.enable_warmup:
-        results, total_duration = decode_dataset(
-            model,
-            dataset,
-            batch_size=args.batch_size,
-            num_beams=args.num_beams,
-            normalizer=normalizer,
-            mel_filters_dir=args.assets_dir,
-            padding_strategy=args.padding_strategy)
-
-    start_time = time.time()
-    if args.input_file:
-        results, total_duration = decode_wav_file(
-            args.input_file,
-            model,
-            text_prefix=args.text_prefix,
-            dtype=args.dtype,
-            batch_size=args.batch_size,
-            num_beams=args.num_beams,
-            mel_filters_dir=args.assets_dir,
-            padding_strategy=args.padding_strategy)
-    else:
-        results, total_duration = decode_dataset(
-            model,
-            dataset,
-            text_prefix=args.text_prefix,
-            dtype=args.dtype,
-            batch_size=args.batch_size,
-            num_beams=args.num_beams,
-            normalizer=normalizer,
-            mel_filters_dir=args.assets_dir,
-            compute_cer=args.compute_cer,
-            padding_strategy=args.padding_strategy)
-    elapsed = time.time() - start_time
-    results = sorted(results)
-
-    Path(args.results_dir).mkdir(parents=True, exist_ok=True)
-    store_transcripts(filename=f"{args.results_dir}/recogs-{args.name}.txt",
-                      texts=results)
-
-    with open(f"{args.results_dir}/errs-{args.name}.txt", "w") as f:
-        total_error_rate = write_error_stats(f,
-                                             "test-set",
-                                             results,
-                                             enable_log=True)
-        if args.accuracy_check and args.dataset == "hf-internal-testing/librispeech_asr_dummy" and not args.input_file:
-            assert total_error_rate <= 2.8, f"Word Error rate using whisper large-v3 model should be 2.40%, but got {total_error_rate}"
-
-    rtf = elapsed / total_duration
-    s = f"RTF: {rtf:.4f}\n"
-    s += f"total_duration: {total_duration:.3f} seconds\n"
-    s += f"({total_duration/3600:.2f} hours)\n"
-    s += f"processing time: {elapsed:.3f} seconds " f"({elapsed/3600:.2f} hours)\n"
-    s += f"batch size: {args.batch_size}\n"
-    s += f"num_beams: {args.num_beams}\n"
-    s += f"total error rate: {total_error_rate:.2f}%\n"
-    print(s)
-
-
-
-
 
     with open(f"{args.results_dir}/rtf-{args.name}.txt", "w") as f:
         f.write(s)
