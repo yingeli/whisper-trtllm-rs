@@ -279,6 +279,9 @@ class WhisperDecoding:
                                              device='cuda')
         decoder_max_input_length = torch.max(decoder_input_lengths).item()
 
+        print("decoder_max_input_length + max_new_tokens:", decoder_max_input_length + max_new_tokens)
+        print("encoder_max_input_length:", encoder_max_input_length)
+
         cross_attention_mask = torch.ones([
             batch_size, decoder_max_input_length + max_new_tokens,
             encoder_max_input_length
@@ -310,6 +313,9 @@ class WhisperDecoding:
 
                 encoder_outputs = remove_tensor_padding(encoder_outputs,
                                                         encoder_output_lens)
+        print ("encoder_outputs:", encoder_outputs.shape)
+        print ("encoder_input_lengths:", encoder_input_lengths.shape)
+        print ("cross_attention_mask:", cross_attention_mask.shape)
         output_ids = self.decoder_generation_session.decode(
             decoder_input_ids,
             decoder_input_lengths,
@@ -366,7 +372,7 @@ class WhisperTRTLLM(object):
         else:
             json_config = GptJsonConfig.parse_file(engine_dir / 'decoder' /
                                                    'config.json')
-            assert json_config.model_config.supports_inflight_batching
+            #assert json_config.model_config.supports_inflight_batching
             runner_kwargs = dict(engine_dir=engine_dir,
                                  is_enc_dec=True,
                                  max_batch_size=batch_size,
@@ -412,6 +418,12 @@ class WhisperTRTLLM(object):
                     ]
                 else:
                     mel = mel.transpose(1, 2)
+
+                cross_attention_masks = torch.ones([
+                    1, 100, 1500]).int().cuda()
+                print("mel shape:", mel.shape)
+                print("mel_input_lengths shape:", mel_input_lengths.shape)
+                print("cross_attention_masks shape:", cross_attention_masks.shape)
                 outputs = self.model_runner_cpp.generate(
                     batch_input_ids=decoder_input_ids,
                     encoder_input_features=mel,
@@ -421,7 +433,9 @@ class WhisperTRTLLM(object):
                     pad_id=self.eot_id,
                     num_beams=num_beams,
                     output_sequence_lengths=True,
-                    return_dict=True)
+                    #cross_attention_masks=cross_attention_masks,
+                    return_dict=True
+                    )
                 torch.cuda.synchronize()
                 output_ids = outputs['output_ids'].cpu().numpy().tolist()
         texts = []

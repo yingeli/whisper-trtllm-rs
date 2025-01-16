@@ -45,3 +45,15 @@ trtllm-build  --checkpoint_dir ${checkpoint_dir}/decoder \
 python3 run.py --name single_wav_test --engine_dir $output_dir --input_file assets/1221-135766-0002.wav --use_py_session
 
 python3 run.py --name single_wav_test --engine_dir $output_dir --input_file assets/en-30s.wav --use_py_session
+
+
+trtllm-build  --checkpoint_dir ${checkpoint_dir}/decoder \
+              --output_dir ${output_dir}/decoder \
+              --moe_plugin disable \
+              --max_beam_width ${MAX_BEAM_WIDTH} \
+              --max_batch_size ${MAX_BATCH_SIZE} \
+              --max_seq_len 114 \
+              --max_input_len 14 \
+              --max_encoder_input_len 3000 \
+              --gemm_plugin ${INFERENCE_PRECISION} \
+              --context_fmha disable
