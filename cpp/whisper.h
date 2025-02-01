@@ -10,29 +10,34 @@ const int SAMPLING_RATE = 16000;
 const int MAX_NEW_TOKENS = 96;
 
 using tle::BatchingType;
+using tle::VecTokens;
 
-struct Config {
-    BatchingType batchingType = BatchingType::kSTATIC;
-};
+namespace tensorrt_llm::whisper {
 
-struct TranscribeResult {
-    tle::VecTokens output;
-};
+    struct Config {
+        BatchingType batchingType = BatchingType::kSTATIC;
+    };
 
-class Whisper {
-    public:
-        Whisper(
-            std::filesystem::path const& modelPath,
-            Config config
-        );
+    struct TranscribeResult {
+        VecTokens output;
+    };
 
-        TranscribeResult transcribe(
-            //std::span<float> audio,
-            std::vector<float> audio,
-            tle::VecTokens prompt
-        );
+    class Whisper {
+        public:
+            Whisper(
+                std::filesystem::path const& modelPath,
+                const Config config
+            );
 
-    private:
-        LogMelSpectrogram mMel;
-        tle::Executor mExecutor;
-};
+            TranscribeResult transcribe(
+                //std::span<float> audio,
+                std::vector<float> audio,
+                tle::VecTokens prompt
+            );
+
+        private:
+            LogMelSpectrogram mMel;
+            tle::Executor mExecutor;
+    };
+
+}

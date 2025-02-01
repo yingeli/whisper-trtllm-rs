@@ -1,9 +1,7 @@
 #pragma once
 
-#include "cpp/whisper.h"
+#include "whisper-trtllm-rs/cpp/whisper.h"
 
-#include "tensorrt_llm/executor/types.h"
-#include "tensorrt_llm/executor/executor.h"
 #include "tensorrt_llm/plugins/api/tllmPlugin.h"
 
 #include <memory>
@@ -11,18 +9,47 @@
 
 #include "rust/cxx.h"
 
-//const tle::SizeType32 BEAM_WIDTH = 4;
+namespace tle = tensorrt_llm::executor;
+namespace tlw = tensorrt_llm::whisper;
 
-inline std::unique_ptr<Whisper> whisper(rust::Str modelPathStr, Config config) {
-    auto modelPath = std::filesystem::path(static_cast<std::string>(modelPathStr));
-    //auto encoderModelPath = std::filesystem::path(modelPath + "/encoder");
-    //auto decoderModelPath = std::filesystem::path(modelPath + "/decoder");
+using tle::BatchingType;
+using tle::Tensor;
+using tle::VecTokens;
+using tlw::Config;
 
-    //auto executorConfig = tle::ExecutorConfig(BEAM_WIDTH);
-    //executorConfig.setBatchingType(batchingType);
+class Whisper {
+    public:
+        /*
+        Whisper(
+            rust::Str const& model_path_str,
+            Config config
+        ) : Whisper(
+            std::filesystem::path(static_cast<std::string>(model_path_str)),
+            config
+        ) {}
+        */
 
+        Whisper(
+            std::filesystem::path const& model_path,
+            Config config
+        );
+
+        /*
+        TranscribeResult transcribe(
+            //std::vector<float> audio,
+            Tensor features,
+            VecTokens prompts
+        );
+        */
+
+    private:
+        tlw::Whisper _inner;
+};
+
+inline std::unique_ptr<Whisper> whisper(const rust::Str model_path_str, const Config config) {
+    auto model_path = std::filesystem::path(static_cast<std::string>(model_path_str));
     return std::make_unique<Whisper>(
-        modelPath,
+        model_path,
         config
     );
 }

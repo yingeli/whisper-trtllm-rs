@@ -2,14 +2,14 @@ use std::path::Path;
 
 use anyhow::Result;
 
-use whisper_trt::Whisper;
+use whisper_trtllm_rs::Whisper;
 
 use hound::WavReader;
 
 fn main() -> Result<()> {
-    let whisper = Whisper::load("/home/coder/whisper-trt/models/whisper_turbo_int8")?;
-    let audio = read_audio("/home/coder/whisper-trt/models/assets/1221-135766-0002.wav", 16000)?;
-    whisper.transcribe(&audio);
+    let whisper = Whisper::load("/home/coder/whisper-trtllm-rs/models/whisper_turbo_int8")?;
+    //let audio = read_audio("/home/coder/whisper-trt/models/assets/1221-135766-0002.wav", 16000)?;
+    //whisper.transcribe(&audio);
     Ok(())
 }
 

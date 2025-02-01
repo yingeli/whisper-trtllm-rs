@@ -4,6 +4,10 @@ use std::path::Path;
 use std::sync::Once;
 use anyhow::{anyhow, Result};
 
+use super::{
+    tensor, Tensor, 
+};
+
 static INIT: Once = Once::new();
 
 #[cxx::bridge]
@@ -20,14 +24,35 @@ mod ffi {
         batchingType: BatchingType,
     }
 
+    /*
+    struct TranscribeResult {
+        sequences: Vec<VecString>,
+        sequences_ids: Vec<VecUSize>,
+        scores: Vec<f32>,
+        no_speech_prob: f32,
+    }
+    */
+
     unsafe extern "C++" {
-        include!("whisper.h");
+        include!("whisper-trtllm-rs/src/sys/whisper.h");
         
         type BatchingType;
 
         type Config;
 
+        type Tensor = super::Tensor;
+
+        //type TranscribeResult;
+
         type Whisper;
+
+        /*
+        fn transcribe(
+            self: &Whisper,
+            features: Tensor,
+            prompts: &[i32],
+        ) -> Result<>
+        */
 
         fn init() -> bool;
 

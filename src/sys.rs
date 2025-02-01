@@ -1,3 +1,5 @@
+mod tensor;
 mod whisper;
 
-pub use whisper::{Whisper, Config, BatchingType};
+pub(crate) use tensor::Tensor;
+pub use whisper::*;

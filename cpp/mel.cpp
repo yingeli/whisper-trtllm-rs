@@ -20,7 +20,12 @@ torch::Tensor load_mel_filters(std::filesystem::path const& melFilterPath, const
 
     // Convert the data to a torch::Tensor
     float* data = melArray.data<float>();
-    torch::Tensor tensor = torch::from_blob(data, {static_cast<long>(shape[0]), static_cast<long>(shape[1])}, torch::kFloat32);
+    //torch::Tensor tensor = torch::from_blob(data, 
+    //    {static_cast<long>(shape[0]), static_cast<long>(shape[1])}, 
+    //    torch::TensorOptions().dtype(torch::kFloat32).device(device));
+    torch::Tensor tensor = torch::from_blob(data, 
+        {static_cast<long>(shape[0]), static_cast<long>(shape[1])}, 
+        torch::kFloat32);
 
     return tensor;
 }
@@ -38,7 +43,9 @@ LogMelSpectrogram::LogMelSpectrogram(
 
 torch::Tensor LogMelSpectrogram::extract(std::vector<float> audio, const int padding) {
     // Convert audio to tensor
-    torch::Tensor audioTensor = torch::from_blob((void*)audio.data(), {1, (long)audio.size()}, torch::kFloat32).to(mDevice);
+    torch::Tensor audioTensor = torch::from_blob((void*)audio.data(), 
+        {1, (long)audio.size()}, 
+        torch::TensorOptions().dtype(torch::kFloat32).device(mDevice));
 
     if (padding > 0) {
         audioTensor = torch::nn::functional::pad(

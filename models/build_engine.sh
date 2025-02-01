@@ -45,7 +45,7 @@ trtllm-build  --checkpoint_dir ${checkpoint_dir}/decoder \
               --remove_input_padding disable \
               --kv_cache_type continuous
 
-python3 run.py --name single_wav_test --engine_dir $output_dir --input_file assets/1221-135766-0002.wav --use_py_session
+python3 run.py --name single_wav_test --engine_dir $output_dir --input_file assets/1221-135766-0002.wav --enable_warmup --use_py_session
 
 python3 run.py --name single_wav_test --engine_dir $output_dir --input_file assets/meeting-30s.wav --enable_warmup --use_py_session 
 
