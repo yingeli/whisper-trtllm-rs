@@ -26,8 +26,9 @@ trtllm-build  --checkpoint_dir ${checkpoint_dir}/encoder \
               --bert_attention_plugin ${INFERENCE_PRECISION} \
               --max_input_len 3000 --max_seq_len=3000 \
               --context_fmha disable \
-              --kv_cache_type continuous \
-              --remove_input_padding disable
+              --remove_input_padding disable \
+              --kv_cache_type continuous
+
 
 trtllm-build  --checkpoint_dir ${checkpoint_dir}/decoder \
               --output_dir ${output_dir}/decoder \
@@ -41,12 +42,12 @@ trtllm-build  --checkpoint_dir ${checkpoint_dir}/decoder \
               --bert_attention_plugin ${INFERENCE_PRECISION} \
               --gpt_attention_plugin ${INFERENCE_PRECISION} \
               --context_fmha disable \
-              --kv_cache_type continuous \
-              --remove_input_padding disable
+              --remove_input_padding disable \
+              --kv_cache_type continuous
 
 python3 run.py --name single_wav_test --engine_dir $output_dir --input_file assets/1221-135766-0002.wav --use_py_session
 
-python3 run.py --name single_wav_test --engine_dir $output_dir --input_file assets/en-30s.wav --use_py_session
+python3 run.py --name single_wav_test --engine_dir $output_dir --input_file assets/meeting-30s.wav --enable_warmup --use_py_session 
 
 
 trtllm-build  --checkpoint_dir ${checkpoint_dir}/decoder \

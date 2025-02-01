@@ -29,4 +29,6 @@ cpp/build/
 models/assets/
 models/whisper*/
 models/tmp/
+models/model.cache
+
 

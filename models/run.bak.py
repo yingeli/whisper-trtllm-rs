@@ -109,8 +109,8 @@ def remove_tensor_padding(input_tensor,
         assert input_tensor_lengths is None, "input_tensor_lengths should be None when pad_value is provided"
         # Text tensor case: batch, seq_len
         assert torch.all(
-            input_tensor[:, 0] !=
-            pad_value), "First token in each sequence should not be pad_value"
+            input_tensor[:, 0] != pad_value
+        ), "First token in each sequence should not be pad_value"
         assert input_tensor_lengths is None
 
         # Create a mask for all non-pad tokens
@@ -203,10 +203,9 @@ class WhisperEncoding:
 
         logger.debug(f'output info {output_info}')
         outputs = {
-            t.name:
-            torch.empty(tuple(t.shape),
-                        dtype=trt_dtype_to_torch(t.dtype),
-                        device='cuda')
+            t.name: torch.empty(tuple(t.shape),
+                                dtype=trt_dtype_to_torch(t.dtype),
+                                device='cuda')
             for t in output_info
         }
         stream = torch.cuda.current_stream()
@@ -366,7 +365,7 @@ class WhisperTRTLLM(object):
         else:
             json_config = GptJsonConfig.parse_file(engine_dir / 'decoder' /
                                                    'config.json')
-            # assert json_config.model_config.supports_inflight_batching
+            #assert json_config.model_config.supports_inflight_batching
             runner_kwargs = dict(engine_dir=engine_dir,
                                  is_enc_dec=True,
                                  max_batch_size=batch_size,
@@ -412,10 +411,18 @@ class WhisperTRTLLM(object):
                     ]
                 else:
                     mel = mel.transpose(1, 2)
+
+                #cross_attention_masks = torch.ones([
+                #    1, 1500, 100]).int().cuda()
+                #print("mel shape:", mel.shape)
+                #print("mel_input_lengths shape:", mel_input_lengths.shape)
+                #print("cross_attention_masks shape:", cross_attention_masks.shape)
+
                 outputs = self.model_runner_cpp.generate(
                     batch_input_ids=decoder_input_ids,
                     encoder_input_features=mel,
                     encoder_output_lengths=mel_input_lengths // 2,
+                    #cross_attention_masks=cross_attention_masks,
                     max_new_tokens=max_new_tokens,
                     end_id=self.eot_id,
                     pad_id=self.eot_id,
