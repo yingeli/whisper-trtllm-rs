@@ -172,15 +172,18 @@ def log_mel_spectrogram(
 
     if device is not None:
         audio = audio.to(device)
+
     if padding > 0:
         # pad to N_SAMPLES
         audio = F.pad(audio, (0, padding))
     window = torch.hann_window(N_FFT).to(audio.device)
+
     stft = torch.stft(audio,
                       N_FFT,
                       HOP_LENGTH,
                       window=window,
                       return_complex=True)
+
     magnitudes = stft[..., :-1].abs()**2
 
     filters = mel_filters(audio.device, n_mels, mel_filters_dir)
@@ -189,6 +192,7 @@ def log_mel_spectrogram(
     log_spec = torch.clamp(mel_spec, min=1e-10).log10()
     log_spec = torch.maximum(log_spec, log_spec.max() - 8.0)
     log_spec = (log_spec + 4.0) / 4.0
+
     if return_duration:
         return log_spec, duration
     else:

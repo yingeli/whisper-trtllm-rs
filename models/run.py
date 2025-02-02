@@ -62,7 +62,7 @@ def parse_arguments():
     parser.add_argument('--name',
                         type=str,
                         default="librispeech_dummy_benchmark")
-    parser.add_argument('--batch_size', type=int, default=1)
+    parser.add_argument('--batch_size', type=int, default=3)
     parser.add_argument('--num_beams', type=int, default=1)
     parser.add_argument('--debug', action='store_true')
     parser.add_argument('--enable_warmup', action='store_true')
@@ -412,6 +412,14 @@ class WhisperTRTLLM(object):
                     ]
                 else:
                     mel = mel.transpose(1, 2)
+                print(f"mel shape: {mel.shape}")
+                print(f"mel: {mel}")
+                print(f"encoder_output_lengths: {mel_input_lengths[0] // 2}")
+                print(f"decoder_input_ids: {decoder_input_ids}")
+                print(f"max_new_tokens: {max_new_tokens}")
+                print(f"num_beams: {num_beams}")
+                print(f"eot_id: {self.eot_id}")
+                print(f"pad_id: {self.eot_id}")
                 outputs = self.model_runner_cpp.generate(
                     batch_input_ids=decoder_input_ids,
                     encoder_input_features=mel,
@@ -428,6 +436,7 @@ class WhisperTRTLLM(object):
         for i in range(len(output_ids)):
             text = self.tokenizer.decode(output_ids[i][0]).strip()
             texts.append(text)
+        print(f"texts: {texts}")
         return texts
 
 

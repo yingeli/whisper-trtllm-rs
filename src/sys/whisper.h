@@ -15,32 +15,30 @@ namespace tlw = tensorrt_llm::whisper;
 using tle::BatchingType;
 using tle::Tensor;
 using tle::VecTokens;
+using tle::IdType;
 using tlw::Config;
+
+struct TranscribeResult;
 
 class Whisper {
     public:
-        /*
-        Whisper(
-            rust::Str const& model_path_str,
-            Config config
-        ) : Whisper(
-            std::filesystem::path(static_cast<std::string>(model_path_str)),
-            config
-        ) {}
-        */
-
         Whisper(
             std::filesystem::path const& model_path,
             Config config
         );
 
-        /*
-        TranscribeResult transcribe(
-            //std::vector<float> audio,
-            Tensor features,
-            VecTokens prompts
+        IdType enqueue_transcribe_request(
+            const rust::Slice<const float> audio,
+            const rust::Slice<const std::uint32_t> prompt
         );
-        */
+
+        TranscribeResult await_transcribe_response(
+            IdType const &request_id
+        );
+
+        bool is_response_ready(
+            IdType const &request_id
+        ) const;
 
     private:
         tlw::Whisper _inner;

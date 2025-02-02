@@ -6,10 +6,30 @@ use whisper_trtllm_rs::Whisper;
 
 use hound::WavReader;
 
+use std::sync::Arc;
+
 fn main() -> Result<()> {
-    let whisper = Whisper::load("/home/coder/whisper-trtllm-rs/models/whisper_turbo_int8")?;
-    //let audio = read_audio("/home/coder/whisper-trt/models/assets/1221-135766-0002.wav", 16000)?;
-    //whisper.transcribe(&audio);
+    let whisper = Arc::new(Whisper::load("/home/coder/whisper-trtllm-rs/models/whisper_turbo_int8")?);
+    let audio = read_audio("/home/coder/whisper-trtllm-rs/models/assets/meeting-30s.wav", 16000)?;
+    let _result = whisper.transcribe(&audio)?;
+
+    let n = 2; // Number of threads
+    let mut handles = Vec::new();
+    for i in 0..n {
+        let audio_clone = audio.clone();
+        let whisper_clone = whisper.clone();
+        handles.push(std::thread::spawn(move || {
+            let start = std::time::Instant::now();
+            let result = whisper_clone.transcribe(&audio_clone).unwrap();
+            println!("Thread {} time: {:?}", i, start.elapsed());
+            println!("Result: {:?}", result);
+        }));
+    }
+
+    for handle in handles {
+        handle.join().unwrap();
+    }
+
     Ok(())
 }
 

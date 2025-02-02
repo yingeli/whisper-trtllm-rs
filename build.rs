@@ -33,7 +33,7 @@ fn main() {
     .include("/home/coder/whisper-trtllm-rs/cpp/TensorRT-LLM/cpp")
     .include("/usr/local/tensorrt/include")
     //.cpp(true)
-    .std("c++17")
+    .std("c++20")
     .cuda(true)
     //.static_flag(true)
     //.static_crt(cfg!(target_os = "windows"))
