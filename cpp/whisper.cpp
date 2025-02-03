@@ -14,13 +14,13 @@ namespace tle = tensorrt_llm::executor;
 
 namespace tensorrt_llm::whisper {
 
-    tle::ExecutorConfig executorConfig(const Config config) {
+    tle::ExecutorConfig executorConfig(const Config config, float* prevTimestampLogProb) {
         tle::KvCacheConfig kvCacheConfig;
         kvCacheConfig.setFreeGpuMemoryFraction(0.9);
         kvCacheConfig.setCrossKvCacheFraction(0.5);
 
         std::string logitsPostProcessorName = "MyLogitsPP";
-        auto logitsPostProcessorFn = [](
+        auto logitsPostProcessorFn = [prevTimestampLogProb](
             tle::IdType reqId, 
             tle::Tensor& logits, 
             tle::BeamTokens const& tokens,
@@ -51,9 +51,16 @@ namespace tensorrt_llm::whisper {
 
             //if (timestampe_logprob > -0.5) {
 
-            std::cout << "max_text_logprob: " << max_text_logprob << " timestampe_logprob: " << timestampe_logprob << std::endl;
-            std::cout << "tokens: " << tokens << std::endl;
-            std::cout << std::endl;
+            if ((float)timestampe_logprob > *prevTimestampLogProb + 3.1) {
+                std::cout << "max_text_logprob: " << max_text_logprob 
+                    << " timestampe_logprob: " << timestampe_logprob 
+                    << " prevTimestampLogProb: " << *prevTimestampLogProb 
+                    << std::endl;
+                std::cout << "tokens: " << tokens << std::endl;
+                std::cout << std::endl;
+            }
+
+            *prevTimestampLogProb = (float)timestampe_logprob;
         };
         auto logitsProcConfig = tle::LogitsPostProcessorConfig();
         auto logitsProcMap = std::unordered_map<std::string, tensorrt_llm::executor::LogitsPostProcessor>{
@@ -75,12 +82,13 @@ namespace tensorrt_llm::whisper {
     Whisper::Whisper(
         std::filesystem::path const& modelPath, 
         const Config config
-    ) : mMel(modelPath / "mel_filters.npz"),
+    ) : mPrevTimestampLogProb(0.0),
+        mMel(modelPath / "mel_filters.npz"),
         mExecutor(
             modelPath / "encoder",
             modelPath / "decoder",
             tle::ModelType::kENCODER_DECODER,
-            executorConfig(config)) {
+            executorConfig(config, &mPrevTimestampLogProb)) {
     }
 
     IdType Whisper::enqueueTranscribeRequest(

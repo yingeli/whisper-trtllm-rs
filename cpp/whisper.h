@@ -46,6 +46,7 @@ namespace tensorrt_llm::whisper {
         private:
             LogMelSpectrogram mMel;
             tle::Executor mExecutor;
+            float mPrevTimestampLogProb;
     };
 
 }
