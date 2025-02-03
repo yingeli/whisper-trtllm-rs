@@ -11,8 +11,10 @@ use std::sync::Arc;
 fn main() -> Result<()> {
     let whisper = Arc::new(Whisper::load("/home/coder/whisper-trtllm-rs/models/whisper_turbo_int8")?);
     let audio = read_audio("/home/coder/whisper-trtllm-rs/models/assets/meeting-30s.wav", 16000)?;
-    let _result = whisper.transcribe(&audio)?;
+    let result = whisper.transcribe(&audio)?;
+    println!("Result: {:?}", result);
 
+    /*
     let n = 2; // Number of threads
     let mut handles = Vec::new();
     for i in 0..n {
@@ -28,7 +30,7 @@ fn main() -> Result<()> {
 
     for handle in handles {
         handle.join().unwrap();
-    }
+    }*/
 
     Ok(())
 }

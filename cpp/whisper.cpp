@@ -3,8 +3,11 @@
 #include "tensorrt_llm/executor/executor.h"
 #include "tensorrt_llm/executor/tensor.h"
 #include "tensorrt_llm/runtime/torchView.h"
+#include "tensorrt_llm/runtime/torch.h"
 
-//#include <span>
+#include <torch/torch.h>
+
+#include <cuda_fp16.h>
 
 namespace tlr = tensorrt_llm::runtime;
 namespace tle = tensorrt_llm::executor;
@@ -16,10 +19,55 @@ namespace tensorrt_llm::whisper {
         kvCacheConfig.setFreeGpuMemoryFraction(0.9);
         kvCacheConfig.setCrossKvCacheFraction(0.5);
 
+        std::string logitsPostProcessorName = "MyLogitsPP";
+        auto logitsPostProcessorFn = [](
+            tle::IdType reqId, 
+            tle::Tensor& logits, 
+            tle::BeamTokens const& tokens,
+            tle::StreamPtr const& streamPtr, 
+            std::optional<tle::IdType> clientId)
+        {
+            auto const tensorOptions = torch::device(tlr::TorchUtils::device(logits.getData()))
+                .pinned_memory(logits.getMemoryType() == tle::MemoryType::kCPU_PINNEDPOOL)
+                //.dtype(tlr::TorchUtils::dataType(logits.getDataType()))
+                .dtype(torch::kFloat16)
+                .layout(torch::kStrided);
+            //auto shape = tlr::TorchUtils::shape(logits.getShape());
+            //std::vector<tle::SizeType32> shape = {1, 1, logits.getShape()[2]};
+            //auto torch_logits = torch::for_blob(logits.getData(), {1, 1, logits.getShape()[2]})
+            //    .options(tensorOptions)
+            //    .make_tensor();
+            auto torch_logits = torch::from_blob(logits.getData(), {1, 1, logits.getShape()[2]}, tensorOptions);
+
+            auto logprobs = torch::nn::functional::log_softmax(torch_logits, 2);
+            // auto logprobs = torch::nn::functional::softmax(torch_logits, 2);
+
+            auto text_logprobs = logprobs.slice(2, 0, 50365);
+            auto timestampe_logprobs = logprobs.slice(2, 50365, 50866);
+
+            auto max_text_logprob = std::get<0>(text_logprobs.max(2)).item<torch::Half>();
+            auto timestampe_logprob = torch::logsumexp(timestampe_logprobs, 2).item<torch::Half>();
+            //auto timestampe_logprob = timestampe_logprobs.sum(2).item<torch::Half>();
+
+            //if (timestampe_logprob > -0.5) {
+
+            std::cout << "max_text_logprob: " << max_text_logprob << " timestampe_logprob: " << timestampe_logprob << std::endl;
+            std::cout << "tokens: " << tokens << std::endl;
+            std::cout << std::endl;
+        };
+        auto logitsProcConfig = tle::LogitsPostProcessorConfig();
+        auto logitsProcMap = std::unordered_map<std::string, tensorrt_llm::executor::LogitsPostProcessor>{
+            {logitsPostProcessorName, logitsPostProcessorFn}
+        };
+        logitsProcConfig.setProcessorMap(logitsProcMap);
+
         tle::ExecutorConfig executorConfig = tle::ExecutorConfig(1);
         executorConfig.setBatchingType(config.batchingType);
         executorConfig.setKvCacheConfig(kvCacheConfig);
         executorConfig.setEnableChunkedContext(false);
+        executorConfig.setLogitsPostProcessorConfig(logitsProcConfig);
+
+        std::cout << "registered MyLogitsPP" << std::endl;
         
         return executorConfig;
     }
@@ -66,6 +114,8 @@ namespace tensorrt_llm::whisper {
         request.setEncoderOutputLength(encoderOutputLength);
         request.setEndId(50257);
         request.setPadId(50257);
+        std::string logitsPostProcessorName = "MyLogitsPP";
+        request.setLogitsPostProcessorName(logitsPostProcessorName);
 
         return mExecutor.enqueueRequest(request);
     }
