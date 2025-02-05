@@ -62,7 +62,7 @@ def parse_arguments():
     parser.add_argument('--name',
                         type=str,
                         default="librispeech_dummy_benchmark")
-    parser.add_argument('--batch_size', type=int, default=3)
+    parser.add_argument('--batch_size', type=int, default=8)
     parser.add_argument('--num_beams', type=int, default=1)
     parser.add_argument('--debug', action='store_true')
     parser.add_argument('--enable_warmup', action='store_true')
@@ -583,6 +583,16 @@ if __name__ == '__main__':
             normalizer=normalizer,
             mel_filters_dir=args.assets_dir,
             padding_strategy=args.padding_strategy)
+        
+    results, total_duration = decode_wav_file(
+        args.input_file,
+        model,
+        text_prefix=args.text_prefix,
+        dtype=args.dtype,
+        batch_size=args.batch_size,
+        num_beams=args.num_beams,
+        mel_filters_dir=args.assets_dir,
+        padding_strategy=args.padding_strategy)
 
     start_time = time.time()
     if args.input_file:

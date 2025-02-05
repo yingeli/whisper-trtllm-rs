@@ -14,8 +14,7 @@ fn main() -> Result<()> {
     let result = whisper.transcribe(&audio)?;
     println!("Result: {:?}", result);
 
-    /*
-    let n = 2; // Number of threads
+    let n = 1; // Number of threads
     let mut handles = Vec::new();
     for i in 0..n {
         let audio_clone = audio.clone();
@@ -30,7 +29,7 @@ fn main() -> Result<()> {
 
     for handle in handles {
         handle.join().unwrap();
-    }*/
+    }
 
     Ok(())
 }

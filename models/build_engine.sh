@@ -6,7 +6,7 @@ pip install -r requirements.txt
 INFERENCE_PRECISION=float16
 WEIGHT_ONLY_PRECISION=int8
 MAX_BEAM_WIDTH=4
-MAX_BATCH_SIZE=4
+MAX_BATCH_SIZE=8
 checkpoint_dir=whisper_turbo_weights_${WEIGHT_ONLY_PRECISION}
 output_dir=whisper_turbo_${WEIGHT_ONLY_PRECISION}
 
@@ -46,7 +46,7 @@ trtllm-build  --checkpoint_dir ${checkpoint_dir}/decoder \
 
 python3 run.py --name single_wav_test --engine_dir $output_dir --input_file assets/1221-135766-0002.wav --enable_warmup --use_py_session
 
-python3 run.py --name single_wav_test --engine_dir $output_dir --input_file assets/meeting-30s.wav --enable_warmup --use_py_session 
+python3 run.py --name single_wav_test --engine_dir $output_dir --input_file assets/meeting-30s.wav --use_py_session --enable_warmup  
 
 
 trtllm-build  --checkpoint_dir ${checkpoint_dir}/decoder \

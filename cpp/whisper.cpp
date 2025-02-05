@@ -51,13 +51,15 @@ namespace tensorrt_llm::whisper {
 
             //if (timestampe_logprob > -0.5) {
 
-            if ((float)timestampe_logprob > *prevTimestampLogProb + 3.1) {
-                std::cout << "max_text_logprob: " << max_text_logprob 
-                    << " timestampe_logprob: " << timestampe_logprob 
-                    << " prevTimestampLogProb: " << *prevTimestampLogProb 
-                    << std::endl;
+            if ((float)timestampe_logprob > *prevTimestampLogProb + 2) {
+                torch_logits.slice(2, 0, 50365).fill_(-std::numeric_limits<float>::infinity());
+                //text_logprobs.fill_(static_cast<torch::Half>(-std::numeric_limits<float>::infinity()));
+                //std::cout << "max_text_logprob: " << max_text_logprob 
+                //    << " timestampe_logprob: " << timestampe_logprob 
+                //    << " prevTimestampLogProb: " << *prevTimestampLogProb 
+                //    << std::endl;
                 std::cout << "tokens: " << tokens << std::endl;
-                std::cout << std::endl;
+                //std::cout << std::endl;
             }
 
             *prevTimestampLogProb = (float)timestampe_logprob;
@@ -73,8 +75,6 @@ namespace tensorrt_llm::whisper {
         executorConfig.setKvCacheConfig(kvCacheConfig);
         executorConfig.setEnableChunkedContext(false);
         executorConfig.setLogitsPostProcessorConfig(logitsProcConfig);
-
-        std::cout << "registered MyLogitsPP" << std::endl;
         
         return executorConfig;
     }
