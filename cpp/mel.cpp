@@ -7,26 +7,6 @@
 #include <vector>
 #include <filesystem>
 
-torch::Tensor load_mel_filters(std::filesystem::path const& melFilterPath, const int nMels) {
-    // Load the npz file
-    cnpy::npz_t file = cnpy::npz_load(melFilterPath);
-
-    // Load the mel_80 filter array
-    std::string melName = std::string("mel_") + std::to_string(nMels);
-    cnpy::NpyArray melArray = file[melName];
-
-    std::vector<int64_t> shape(melArray.shape.begin(), melArray.shape.end());
-    
-    torch::Tensor tensor = torch::from_blob(melArray.data<void>(), 
-        shape,
-        torch::kFloat32);
-
-    //std::cout << "mFilters 1 shape: " << tensor.sizes() << std::endl;
-    //std::cout << "mFilters 1: " << tensor[0] << std::endl;
-        
-    return tensor;
-}
-
 LogMelSpectrogram::LogMelSpectrogram(
     std::filesystem::path const& melFilterPath, 
     const int nMels,
@@ -49,11 +29,12 @@ LogMelSpectrogram::LogMelSpectrogram(
 }
 
 torch::Tensor LogMelSpectrogram::extract(const std::span<const float> audio) const {
-    int padding = mHopLength - audio.size() % mHopLength;
+    int padding = audio.size() % mHopLength == 0 ? 0 : mHopLength - (audio.size() % mHopLength);
     
     // Convert audio to tensor
     auto device = mFilters.device();
-    torch::Tensor audioTensor = torch::from_blob((void*)audio.data(), 
+    torch::Tensor audioTensor = torch::from_blob(
+        (void*)audio.data(), 
         (long)audio.size(),
         torch::kFloat32).to(device);
 

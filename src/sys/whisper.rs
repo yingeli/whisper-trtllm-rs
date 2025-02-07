@@ -41,6 +41,16 @@ mod ffi {
 
         type Whisper;
 
+        fn enqueue_detect_language_request(
+            self: Pin<&mut Whisper>,
+            audio: &[f32],
+        ) -> Result<u64>;
+
+        fn await_detect_language_response(
+            self: Pin<&mut Whisper>,
+            request_id: &u64,
+        ) -> Result<i32>;
+
         fn enqueue_transcribe_request(
             self: Pin<&mut Whisper>,
             audio: &[f32],
@@ -113,6 +123,16 @@ impl Whisper {
         let ptr = ffi::whisper(path, config.to_ffi());
 
         Ok(Self { ptr })
+    }
+
+    pub fn enqueue_detect_language_request(&mut self, audio: &[f32]) -> Result<u64> {
+        self.ptr.pin_mut().enqueue_detect_language_request(audio)
+            .map_err(|e| anyhow!("failed to enqueue transcribe request: {e}"))
+    }
+
+    pub fn await_detect_language_response(&mut self, request_id: &u64) -> Result<i32> {
+        self.ptr.pin_mut().await_detect_language_response(request_id)
+            .map_err(|e| anyhow!("failed to get transcribe response: {e}"))
     }
 
     pub fn enqueue_transcribe_request(&mut self, audio: &[f32], prompt: &[u32]) -> Result<u64> {

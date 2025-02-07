@@ -21,16 +21,38 @@ impl Whisper {
         Ok(Self { inner, tokenizer })
     }
 
+    pub fn detect_language(&self, audio: &[f32]) -> Result<i32> {
+        let mut inner = self.inner.lock().unwrap();
+        let request_id = inner.enqueue_detect_language_request(audio)?;
+        drop(inner);
+
+        loop {
+            let inner = self.inner.lock().unwrap();
+            if inner.is_response_ready(&request_id)? {
+                break;
+            }
+            drop(inner);
+            std::thread::sleep(std::time::Duration::from_millis(10));
+        }
+
+        let mut inner = self.inner.lock().unwrap();
+        let result = inner.await_detect_language_response(&request_id)?;
+
+        //let output = self.tokenizer.decode(result.tokens.as_slice(), false)?;
+
+        Ok(result)
+    }
+
     pub fn transcribe(&self, audio: &[f32]) -> Result<String> {
-        let lang_token = self.tokenizer.language_token_id("en")?;
+        let lang_token = self.tokenizer.language_token_id("th")?;
 
         // Transcribe.
         let mut prompt = vec![
             self.tokenizer.start_of_prev(),
-            self.tokenizer.timestamp_token_id(0.0)?,
+            //self.tokenizer.timestamp_token_id(0.0)?,
         ];
         prompt.extend_from_slice(self.tokenizer.encode("Hi,")?.get_ids());
-        prompt.push(self.tokenizer.timestamp_token_id(0.5)?);
+        //prompt.push(self.tokenizer.timestamp_token_id(0.5)?);
 
         prompt.push(self.tokenizer.start_of_transcript());
         prompt.push(lang_token);

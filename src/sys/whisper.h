@@ -16,6 +16,7 @@ using tle::BatchingType;
 using tle::Tensor;
 using tle::VecTokens;
 using tle::IdType;
+using tle::TokenIdType;
 using tlw::Config;
 
 struct TranscribeResult;
@@ -25,6 +26,14 @@ class Whisper {
         Whisper(
             std::filesystem::path const& model_path,
             Config config
+        );
+
+        IdType enqueue_detect_language_request(
+            const rust::Slice<const float> audio
+        );
+
+        TokenIdType await_detect_language_response(
+            IdType const &request_id
         );
 
         IdType enqueue_transcribe_request(

@@ -1,5 +1,8 @@
 #include "mel.h"
 #include "tensorrt_llm/executor/executor.h"
+
+#include <cuda_fp16.h>
+#include <mutex>
 #include <filesystem>
 #include <span>
 
@@ -12,6 +15,7 @@ const int MAX_NEW_TOKENS = 96;
 using tle::BatchingType;
 using tle::VecTokens;
 using tle::IdType;
+using tle::TokenIdType;
 
 namespace tensorrt_llm::whisper {
 
@@ -23,11 +27,59 @@ namespace tensorrt_llm::whisper {
         VecTokens tokens;
     };
 
+    struct RequestContext {
+        torch::Half mPrevTimestampLogProb;
+    };
+    
+    class TranscribeLogitsProcessor {
+        public:
+            void process(
+                tle::IdType reqId,
+                tle::Tensor& logits, 
+                tle::BeamTokens const& tokens,
+                tle::StreamPtr const& streamPtr
+            );
+    
+        private:
+            std::mutex mRequestContextMapMutex;
+            std::unordered_map<IdType, RequestContext> mRequestContextMap;
+    };
+
+    struct Detection {
+        TokenIdType language;
+    };
+
+    class DetectLogitsProcessor {
+        public:
+            void process(
+                tle::IdType reqId,
+                tle::Tensor& logits, 
+                tle::BeamTokens const& tokens,
+                tle::StreamPtr const& streamPtr
+            );
+
+            TokenIdType getResult(
+                IdType const &requestId
+            );
+    
+        private:
+            std::mutex mDetectionMapMutex;
+            std::unordered_map<IdType, Detection> mDetectionMap;
+    };
+
     class Whisper {
         public:
             Whisper(
                 std::filesystem::path const& modelPath,
                 const Config config
+            );
+
+            IdType enqueueDetectLanguageRequest(
+                const std::span<const float> audio
+            );
+
+            TokenIdType awaitDetectLanguageResponse(
+                IdType const &requestId        
             );
 
             IdType enqueueTranscribeRequest(
@@ -45,8 +97,8 @@ namespace tensorrt_llm::whisper {
 
         private:
             LogMelSpectrogram mMel;
+            TranscribeLogitsProcessor mTranscribeLogitsProcessor;
+            DetectLogitsProcessor mDetectLogitsProcessor;
             tle::Executor mExecutor;
-            float mPrevTimestampLogProb;
     };
-
 }
