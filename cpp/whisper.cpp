@@ -227,15 +227,14 @@ namespace tensorrt_llm::whisper {
     TokenIdType DetectLogitsProcessor::getResult(
         IdType const &requestId
     ) {
+        auto language = 0;
         mDetectionMapMutex.lock();
         auto it = mDetectionMap.find(requestId);
         if (it != mDetectionMap.end()) {
-            auto language = it->second.language;
+            language = it->second.language;
             mDetectionMap.erase(it);
-            mDetectionMapMutex.unlock();
-            return language;
         }
         mDetectionMapMutex.unlock();
-        return 0;
+        return language;
     }
 }
