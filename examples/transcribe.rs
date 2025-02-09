@@ -10,8 +10,9 @@ use std::sync::Arc;
 
 fn main() -> Result<()> {
     let whisper = Arc::new(Whisper::load("/home/coder/whisper-trtllm-rs/models/whisper_turbo_int8")?);
-    let audio = read_audio("/home/coder/whisper-trtllm-rs/models/assets/oppo-th-th.wav", 16000)?;
+    let audio = read_audio("/home/coder/whisper-trtllm-rs/models/assets/meeting-30s.wav", 16000)?;
     let result = whisper.detect_language(&audio)?;
+    let result = whisper.transcribe(&audio)?;
     //println!("Result: {:?}", result);
 
     let start = std::time::Instant::now();
@@ -19,24 +20,24 @@ fn main() -> Result<()> {
     println!("time: {:?}", start.elapsed());
     println!("Result: {:?}", result);    
 
-    /*
     let n = 1; // Number of threads
     let mut handles = Vec::new();
     for i in 0..n {
         let audio_clone = audio.clone();
         let whisper_clone = whisper.clone();
         handles.push(std::thread::spawn(move || {
-            let start = std::time::Instant::now();
-            let result = whisper_clone.transcribe(&audio_clone).unwrap();
-            println!("Thread {} time: {:?}", i, start.elapsed());
-            println!("Result: {:?}", result);
+            loop {
+                let start = std::time::Instant::now();
+                let result = whisper_clone.transcribe(&audio_clone).unwrap();
+                println!("Thread {} time: {:?}", i, start.elapsed());
+                println!("Result: {:?}", result);
+            }
         }));
     }
 
     for handle in handles {
         handle.join().unwrap();
     }
-    */
 
     Ok(())
 }

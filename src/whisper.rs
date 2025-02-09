@@ -44,7 +44,7 @@ impl Whisper {
     }
 
     pub fn transcribe(&self, audio: &[f32]) -> Result<String> {
-        let lang_token = self.tokenizer.language_token_id("th")?;
+        let lang_token = self.tokenizer.language_token_id("en")?;
 
         // Transcribe.
         let mut prompt = vec![

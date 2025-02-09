@@ -139,6 +139,17 @@ namespace tensorrt_llm::whisper {
         return mExecutor.enqueueRequest(request);
     }
 
+    TranscribeResult Whisper::awaitTranscribeResponse(
+        IdType const &requestId        
+    ) {
+        auto response = mExecutor.awaitResponses(requestId)[0];
+        auto result = response.getResult();
+
+        return TranscribeResult {
+            result.outputTokenIds[0]
+        };
+    }
+
     bool Whisper::isResponseReady(
         IdType const &requestId
     ) const {
@@ -168,11 +179,11 @@ namespace tensorrt_llm::whisper {
         auto timestampe_logprob = torch::logsumexp(timestampe_logprobs, 2).item<torch::Half>();
 
         if (timestampe_logprob > max_text_logprob) {
-            std::cout << "max_text_logprob: " << max_text_logprob 
-                << " timestampe_logprob: " << timestampe_logprob 
-                << std::endl;            
-            //torch_logits.slice(2, 0, 50365).fill_(-std::numeric_limits<float>::infinity());
-            std::cout << "tokens: " << tokens << std::endl;
+            //std::cout << "max_text_logprob: " << max_text_logprob 
+            //    << " timestampe_logprob: " << timestampe_logprob 
+            //    << std::endl;            
+            torch_logits.slice(2, 0, 50365).fill_(-std::numeric_limits<float>::infinity());
+            //std::cout << "tokens: " << tokens << std::endl;
         }
 
         mRequestContextMapMutex.lock();
