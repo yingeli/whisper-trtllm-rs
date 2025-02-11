@@ -45,28 +45,6 @@ namespace tensorrt_llm::whisper {
             std::unordered_map<IdType, RequestContext> mRequestContextMap;
     };
 
-    struct Detection {
-        TokenIdType language;
-    };
-
-    class DetectLogitsProcessor {
-        public:
-            void process(
-                tle::IdType reqId,
-                tle::Tensor& logits, 
-                tle::BeamTokens const& tokens,
-                tle::StreamPtr const& streamPtr
-            );
-
-            TokenIdType getResult(
-                IdType const &requestId
-            );
-    
-        private:
-            std::mutex mDetectionMapMutex;
-            std::unordered_map<IdType, Detection> mDetectionMap;
-    };
-
     class Whisper {
         public:
             Whisper(
@@ -98,7 +76,6 @@ namespace tensorrt_llm::whisper {
         private:
             LogMelSpectrogram mMel;
             TranscribeLogitsProcessor mTranscribeLogitsProcessor;
-            DetectLogitsProcessor mDetectLogitsProcessor;
             tle::Executor mExecutor;
     };
 }

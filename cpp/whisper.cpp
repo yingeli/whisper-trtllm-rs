@@ -1,4 +1,5 @@
 #include "whisper.h"
+#include "token.h"
 
 #include "tensorrt_llm/executor/executor.h"
 #include "tensorrt_llm/executor/tensor.h"
@@ -12,10 +13,42 @@ namespace tlr = tensorrt_llm::runtime;
 namespace tle = tensorrt_llm::executor;
 
 namespace tensorrt_llm::whisper {
+    const torch::Half NEG_INF = static_cast<torch::Half>(-std::numeric_limits<float>::infinity());
+
+    torch::Tensor toTorch(
+        tle::Tensor& logits
+    ) {
+        auto const tensorOptions = torch::device(tlr::TorchUtils::device(logits.getData()))
+        .pinned_memory(logits.getMemoryType() == tle::MemoryType::kCPU_PINNEDPOOL)
+        //.dtype(tlr::TorchUtils::dataType(logits.getDataType()))
+        .dtype(torch::kFloat16)
+        .layout(torch::kStrided);
+
+        return torch::from_blob(logits.getData(), {1, 1, logits.getShape()[2]}, tensorOptions);
+    }
+
+    void processDetectionLogits(
+        tle::IdType reqId,
+        tle::Tensor& logits, 
+        tle::BeamTokens const& tokens,
+        tle::StreamPtr const& streamPtr
+    ) {
+        auto torchLogits = toTorch(logits);
+
+        for (auto beam = 0; beam < torchLogits.size(1); beam++) {
+            auto beam_logits = torchLogits.index({0, beam});
+            auto beam_tokens = tokens[beam];
+
+            // Set everything before BEGIN_OF_LANGUAGE to NEG_INF
+            beam_logits.slice(0, 0, token::BEGIN_OF_LANGUAGE).fill_(NEG_INF);
+        
+            // Set everything after END_OF_LANGUAGE to NEG_INF 
+            beam_logits.slice(0, token::END_OF_LANGUAGE).fill_(NEG_INF);
+        };
+    }
 
     tle::ExecutorConfig executorConfig(const Config config, 
-        TranscribeLogitsProcessor& transcribeLogitsProcessor,
-        DetectLogitsProcessor& detectLogitsProcessor
+        TranscribeLogitsProcessor& transcribeLogitsProcessor
     ) {
         tle::KvCacheConfig kvCacheConfig;
         kvCacheConfig.setFreeGpuMemoryFraction(0.9);
@@ -31,14 +64,14 @@ namespace tensorrt_llm::whisper {
             transcribeLogitsProcessor.process(reqId, logits, tokens, streamPtr);
         };
 
-        auto detectLogitsProcessorFn = [&detectLogitsProcessor](
+        auto detectLogitsProcessorFn = [](
             tle::IdType reqId, 
             tle::Tensor& logits, 
             tle::BeamTokens const& tokens,
             tle::StreamPtr const& streamPtr, 
             std::optional<tle::IdType> clientId)
         {
-            detectLogitsProcessor.process(reqId, logits, tokens, streamPtr);
+            processDetectionLogits(reqId, logits, tokens, streamPtr);
         };
 
         auto logitsProcConfig = tle::LogitsPostProcessorConfig();
@@ -62,12 +95,11 @@ namespace tensorrt_llm::whisper {
         const Config config
     ) : mMel(modelPath / "mel_filters.npz"),
         mTranscribeLogitsProcessor(),
-        mDetectLogitsProcessor(),        
         mExecutor(
             modelPath / "encoder",
             modelPath / "decoder",
             tle::ModelType::kENCODER_DECODER,
-            executorConfig(config, mTranscribeLogitsProcessor, mDetectLogitsProcessor)) {
+            executorConfig(config, mTranscribeLogitsProcessor)) {
     }
 
     IdType Whisper::enqueueDetectLanguageRequest(
@@ -96,6 +128,10 @@ namespace tensorrt_llm::whisper {
         request.setPadId(50257);
         request.setLogitsPostProcessorName("detect");
 
+        // tle::OutputConfig outputConfig;
+        // outputConfig.returnLogProbs = true;
+        // request.setOutputConfig(outputConfig);
+
         return mExecutor.enqueueRequest(request);
     }
 
@@ -104,9 +140,7 @@ namespace tensorrt_llm::whisper {
     ) {
         auto response = mExecutor.awaitResponses(requestId)[0];
         auto result = response.getResult();
-
-        auto language = mDetectLogitsProcessor.getResult(requestId);
-        return language;
+        return result.outputTokenIds[0].back();
     }
 
     IdType Whisper::enqueueTranscribeRequest(
@@ -132,8 +166,8 @@ namespace tensorrt_llm::whisper {
         auto request = tle::Request(prompt, MAX_NEW_TOKENS);
         request.setEncoderInputFeatures(tle::detail::ofITensor(tlr::TorchView::of(mel)));
         request.setEncoderOutputLength(encoderOutputLength);
-        request.setEndId(50257);
-        request.setPadId(50257);
+        request.setEndId(token::END_OF_TEXT);
+        request.setPadId(token::END_OF_TEXT);
         request.setLogitsPostProcessorName("transcribe");
 
         return mExecutor.enqueueRequest(request);
@@ -167,8 +201,43 @@ namespace tensorrt_llm::whisper {
             //.dtype(tlr::TorchUtils::dataType(logits.getDataType()))
             .dtype(torch::kFloat16)
             .layout(torch::kStrided);
+        auto shape = logits.getShape();
+        auto torch_logits = torch::from_blob(logits.getData(), {shape[0], shape[1], shape[2]}, tensorOptions);
 
-        auto torch_logits = torch::from_blob(logits.getData(), {1, 1, logits.getShape()[2]}, tensorOptions);
+        std::cout << "torch_logits: " << torch_logits.sizes() << std::endl;
+
+        auto neg_inf = -std::numeric_limits<float>::infinity();
+
+        for (auto beam = 0; beam < torch_logits.size(1); beam++) {
+            auto beam_logits = torch_logits.index({0, beam});
+            auto beam_tokens = tokens[beam];
+
+            // std::cout << "beam_logits: " << beam_logits.sizes() << std::endl;
+
+            // suppress notimestamps
+            beam_logits.index_put_({50364}, neg_inf);
+
+            auto n_tokens = beam_tokens.size();
+            bool last_was_timestamp = beam_tokens[n_tokens - 1] >= 50365 && beam_tokens[n_tokens - 1] <= 51865;
+            bool penultimate_was_timestamp = beam_tokens[n_tokens - 2] >= 50365 && beam_tokens[n_tokens - 2] <= 51865;
+
+            if (last_was_timestamp) {
+                if (penultimate_was_timestamp) {
+                    beam_logits.slice(0, 50365, 51866).fill_(neg_inf);
+                } else {
+                    beam_logits.slice(0, 0, 50257).fill_(neg_inf);
+                }
+            }
+        }
+
+        /*
+
+        // suppress notimestamps
+        torch_logits.index_put_({0, 0, 50364}, neg_inf);
+
+        auto n_tokens = tokens[0].size();
+        
+
 
         auto logprobs = torch::nn::functional::log_softmax(torch_logits, 2);
 
@@ -203,8 +272,10 @@ namespace tensorrt_llm::whisper {
             }            
         }
         mRequestContextMapMutex.unlock();
+        */
     }
 
+    /*
     void DetectLogitsProcessor::process(
         tle::IdType reqId,
         tle::Tensor& logits, 
@@ -248,4 +319,5 @@ namespace tensorrt_llm::whisper {
         mDetectionMapMutex.unlock();
         return language;
     }
+    */
 }

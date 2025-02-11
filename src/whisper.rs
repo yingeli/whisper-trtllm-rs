@@ -36,11 +36,11 @@ impl Whisper {
         }
 
         let mut inner = self.inner.lock().unwrap();
-        let result = inner.await_detect_language_response(&request_id)?;
+        let token_id = inner.await_detect_language_response(&request_id)?;
 
         //let output = self.tokenizer.decode(result.tokens.as_slice(), false)?;
 
-        Ok(result)
+        Ok(token_id)
     }
 
     pub fn transcribe(&self, audio: &[f32]) -> Result<String> {
