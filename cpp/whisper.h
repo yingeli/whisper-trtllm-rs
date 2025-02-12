@@ -18,7 +18,6 @@ using tle::IdType;
 using tle::TokenIdType;
 
 namespace tensorrt_llm::whisper {
-
     struct Config {
         BatchingType batchingType = BatchingType::kINFLIGHT;
     };
@@ -27,12 +26,22 @@ namespace tensorrt_llm::whisper {
         VecTokens tokens;
     };
 
-    struct RequestContext {
+    struct TranscribeContext {
+        std::size_t mSampleBegin;
         torch::Half mPrevTimestampLogProb;
     };
     
     class TranscribeLogitsProcessor {
         public:
+            void addRequest(
+                const IdType reqId, 
+                const std::size_t sampleBegin
+            );
+    
+            void removeRequest(
+                const IdType reqId
+            );
+
             void process(
                 tle::IdType reqId,
                 tle::Tensor& logits, 
@@ -41,8 +50,8 @@ namespace tensorrt_llm::whisper {
             );
     
         private:
-            std::mutex mRequestContextMapMutex;
-            std::unordered_map<IdType, RequestContext> mRequestContextMap;
+            std::mutex mMutex;
+            std::unordered_map<IdType, TranscribeContext> mTranscribeContextMap;
     };
 
     class Whisper {

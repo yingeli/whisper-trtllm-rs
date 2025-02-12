@@ -1,50 +1,25 @@
 #include "whisper.h"
-#include "token.h"
+#include "logits.h"
 
 #include "tensorrt_llm/executor/executor.h"
 #include "tensorrt_llm/executor/tensor.h"
 #include "tensorrt_llm/runtime/torchView.h"
 #include "tensorrt_llm/runtime/torch.h"
 
-#include <torch/torch.h>
 #include <mutex>
 
 namespace tlr = tensorrt_llm::runtime;
 namespace tle = tensorrt_llm::executor;
 
 namespace tensorrt_llm::whisper {
-    const torch::Half NEG_INF = static_cast<torch::Half>(-std::numeric_limits<float>::infinity());
-
-    torch::Tensor toTorch(
-        tle::Tensor& logits
-    ) {
-        auto const tensorOptions = torch::device(tlr::TorchUtils::device(logits.getData()))
-        .pinned_memory(logits.getMemoryType() == tle::MemoryType::kCPU_PINNEDPOOL)
-        //.dtype(tlr::TorchUtils::dataType(logits.getDataType()))
-        .dtype(torch::kFloat16)
-        .layout(torch::kStrided);
-
-        return torch::from_blob(logits.getData(), {1, 1, logits.getShape()[2]}, tensorOptions);
-    }
-
     void processDetectionLogits(
         tle::IdType reqId,
-        tle::Tensor& logits, 
+        tle::Tensor& tleLogits, 
         tle::BeamTokens const& tokens,
         tle::StreamPtr const& streamPtr
     ) {
-        auto torchLogits = toTorch(logits);
-
-        for (auto beam = 0; beam < torchLogits.size(1); beam++) {
-            auto beam_logits = torchLogits.index({0, beam});
-            auto beam_tokens = tokens[beam];
-
-            // Set everything before BEGIN_OF_LANGUAGE to NEG_INF
-            beam_logits.slice(0, 0, token::BEGIN_OF_LANGUAGE).fill_(NEG_INF);
-        
-            // Set everything after END_OF_LANGUAGE to NEG_INF 
-            beam_logits.slice(0, token::END_OF_LANGUAGE).fill_(NEG_INF);
-        };
+        Logits logtis(tleLogits);
+        logtis.suppressNonLanguage();
     }
 
     tle::ExecutorConfig executorConfig(const Config config, 
@@ -121,11 +96,11 @@ namespace tensorrt_llm::whisper {
         int encoderOutputLength = mel.size(0) / 2;
 
         // Create the request
-        auto request = tle::Request({50258}, 1);
+        auto request = tle::Request({token::START_OF_TRANSCRIPT}, 1);
         request.setEncoderInputFeatures(tle::detail::ofITensor(tlr::TorchView::of(mel)));
         request.setEncoderOutputLength(encoderOutputLength);
-        request.setEndId(50257);
-        request.setPadId(50257);
+        request.setEndId(token::END_OF_TEXT);
+        request.setPadId(token::END_OF_TEXT);
         request.setLogitsPostProcessorName("detect");
 
         // tle::OutputConfig outputConfig;
@@ -170,7 +145,10 @@ namespace tensorrt_llm::whisper {
         request.setPadId(token::END_OF_TEXT);
         request.setLogitsPostProcessorName("transcribe");
 
-        return mExecutor.enqueueRequest(request);
+        auto requestId = mExecutor.enqueueRequest(request);
+        mTranscribeLogitsProcessor.addRequest(requestId, prompt.size());
+
+        return requestId;
     }
 
     TranscribeResult Whisper::awaitTranscribeResponse(
@@ -178,6 +156,8 @@ namespace tensorrt_llm::whisper {
     ) {
         auto response = mExecutor.awaitResponses(requestId)[0];
         auto result = response.getResult();
+
+        mTranscribeLogitsProcessor.removeRequest(requestId);
 
         return TranscribeResult {
             result.outputTokenIds[0]
@@ -190,54 +170,104 @@ namespace tensorrt_llm::whisper {
         return mExecutor.getNumResponsesReady(requestId) > 0;
     }
 
+    void TranscribeLogitsProcessor::addRequest(
+        const IdType reqId, 
+        const std::size_t sampleBegin
+    ) {
+        std::lock_guard<std::mutex> lock(mMutex); 
+        mTranscribeContextMap.emplace(reqId, TranscribeContext{sampleBegin});
+    }
+
+    void TranscribeLogitsProcessor::removeRequest(
+        const IdType reqId
+    ) {
+        std::lock_guard<std::mutex> lock(mMutex); 
+        mTranscribeContextMap.erase(reqId);
+    }
+
     void TranscribeLogitsProcessor::process(
         tle::IdType reqId,
-        tle::Tensor& logits, 
+        tle::Tensor& tleLogits, 
         tle::BeamTokens const& tokens,
         tle::StreamPtr const& streamPtr
     ) {
-        auto const tensorOptions = torch::device(tlr::TorchUtils::device(logits.getData()))
-            .pinned_memory(logits.getMemoryType() == tle::MemoryType::kCPU_PINNEDPOOL)
-            //.dtype(tlr::TorchUtils::dataType(logits.getDataType()))
-            .dtype(torch::kFloat16)
-            .layout(torch::kStrided);
-        auto shape = logits.getShape();
-        auto torch_logits = torch::from_blob(logits.getData(), {shape[0], shape[1], shape[2]}, tensorOptions);
+        Logits logits(tleLogits);
 
-        std::cout << "torch_logits: " << torch_logits.sizes() << std::endl;
+        mMutex.lock();
+        auto sampleBegin = mTranscribeContextMap[reqId].mSampleBegin;
+        mMutex.unlock();
 
-        auto neg_inf = -std::numeric_limits<float>::infinity();
+        // suppress notimestamps
+        logits.suppressNoTimestamps();
 
-        for (auto beam = 0; beam < torch_logits.size(1); beam++) {
-            auto beam_logits = torch_logits.index({0, beam});
-            auto beam_tokens = tokens[beam];
+        for (auto b = 0; b < tokens.size(); b++) {
+            auto beamLogits = logits.beam(b);
+            auto beamTokens = tokens[b];
 
-            // std::cout << "beam_logits: " << beam_logits.sizes() << std::endl;
+            // suppress blank at the beginning
+            if (beamTokens.size() == sampleBegin) {
+                beamLogits.suppressBlank();
+            }
 
-            // suppress notimestamps
-            beam_logits.index_put_({50364}, neg_inf);
+            auto nTokens = beamTokens.size();
+            bool lastWasTimestamp = nTokens > sampleBegin &&
+                token::isTimestamp(beamTokens[nTokens - 1]);
+            bool penultimateWasTimestamp = nTokens < sampleBegin + 2 ||
+                nTokens > sampleBegin + 1 && token::isTimestamp(beamTokens[nTokens - 2]);
 
-            auto n_tokens = beam_tokens.size();
-            bool last_was_timestamp = beam_tokens[n_tokens - 1] >= 50365 && beam_tokens[n_tokens - 1] <= 51865;
-            bool penultimate_was_timestamp = beam_tokens[n_tokens - 2] >= 50365 && beam_tokens[n_tokens - 2] <= 51865;
-
-            if (last_was_timestamp) {
-                if (penultimate_was_timestamp) {
-                    beam_logits.slice(0, 50365, 51866).fill_(neg_inf);
+            if (lastWasTimestamp) {
+                if (penultimateWasTimestamp) {
+                    std::cout << "beamLogits: " << beamLogits.sizes() << std::endl;
+                    std::cout << " tokens: " << beamTokens 
+                        << std::endl;
+                    beamLogits.suppressTimestamps();
                 } else {
-                    beam_logits.slice(0, 0, 50257).fill_(neg_inf);
+                    beamLogits.suppressText();
                 }
+            }
+
+            for (auto i = nTokens - 1; i >= sampleBegin; i--) {
+                auto token = beamTokens[i];
+                if (token::isTimestamp(token)) {
+                    tle::TokenIdType timestampLast;
+                    if (lastWasTimestamp && !penultimateWasTimestamp) {
+                        timestampLast = token;
+                    } else {
+                        timestampLast = token + 1;
+                    }
+                    beamLogits.suppressTimestamps(timestampLast);
+                    break;
+                }
+            }
+
+            // suppress generating non-timestamp tokens at the beginning
+            if (beamTokens.size() == sampleBegin) {
+                beamLogits.suppressNonTimestamp();
             }
         }
 
-        /*
+        // TODO: suppress max_initial_timestamp_index
 
-        // suppress notimestamps
-        torch_logits.index_put_({0, 0, 50364}, neg_inf);
-
-        auto n_tokens = tokens[0].size();
+        // if sum of probability over timestamps is above any other token, sample timestamp
+        auto logprobs = logits.logprobs();
         
+        for (auto b = 0; b < tokens.size(); b++) {
+            auto beamLogprobs = logprobs.beam(b);
 
+            auto timestampLogprob = beamLogprobs.timestamps().logsumexp();
+            auto maxTextLogprob = beamLogprobs.nonTimestamps().max();
+
+            if (timestampLogprob > maxTextLogprob) {
+                std::cout << "timestampLogprob: " << timestampLogprob << " maxTextLogprob: " << maxTextLogprob << std::endl;
+                //std::cout << "tokens: " << tokens[b] << std::endl;
+                auto beamLogits = logits.beam(b);
+                beamLogits.suppressNonTimestamp();
+            }
+        }
+    }
+}
+
+/*
 
         auto logprobs = torch::nn::functional::log_softmax(torch_logits, 2);
 
@@ -273,7 +303,6 @@ namespace tensorrt_llm::whisper {
         }
         mRequestContextMapMutex.unlock();
         */
-    }
 
     /*
     void DetectLogitsProcessor::process(
@@ -320,4 +349,3 @@ namespace tensorrt_llm::whisper {
         return language;
     }
     */
-}
