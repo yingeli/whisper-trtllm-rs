@@ -4,8 +4,11 @@
 #include "tensorrt_llm/executor/tensor.h"
 #include "tensorrt_llm/runtime/torchView.h"
 #include "tensorrt_llm/runtime/torch.h"
+#include "tensorrt_llm/runtime/torchUtils.h"
 
 #include <torch/torch.h>
+#include <c10/cuda/CUDAStream.h>
+#include <c10/cuda/CUDAGuard.h>
 
 namespace tlr = tensorrt_llm::runtime;
 namespace tle = tensorrt_llm::executor;
@@ -15,7 +18,10 @@ using tle::TokenIdType;
 namespace tensorrt_llm::whisper {
     const torch::Half NEG_INF = static_cast<torch::Half>(-std::numeric_limits<float>::infinity());
 
+    /*
     torch::Tensor toTorch(tle::Tensor& logits) {
+        return tlr::Torch::tensor(tle::detail::toITensor(logits));
+        /*
         auto const tensorOptions = torch::device(tlr::TorchUtils::device(logits.getData()))
             .pinned_memory(logits.getMemoryType() == tle::MemoryType::kCPU_PINNEDPOOL)
             //.dtype(tlr::TorchUtils::dataType(logits.getDataType()))
@@ -24,10 +30,14 @@ namespace tensorrt_llm::whisper {
 
         return torch::from_blob(logits.getData(), {1, 1, logits.getShape()[2]}, tensorOptions);
     }
+        */
 
     class SingleBatchTensor {
         public:
-            SingleBatchTensor(torch::Tensor tensor): mTensor(tensor) {}
+            SingleBatchTensor(
+                torch::Tensor tensor
+            ) : mTensor(tensor)
+            {}
 
             void put(
                 const TokenIdType id,
@@ -184,7 +194,12 @@ namespace tensorrt_llm::whisper {
 
     class Logits: SingleBatchTensor  {
         public:
-            Logits(tle::Tensor& logits): SingleBatchTensor(toTorch(logits)) {}
+            Logits(
+                tle::Tensor& logits,
+                tle::StreamPtr const& streamPtr
+            ) : SingleBatchTensor(tlr::Torch::tensor(tle::detail::toITensor(logits))),
+                mStreamGuard(tlr::TorchUtils::stream(*streamPtr)) 
+            {}
 
             void suppressNoTimestamps() {
                 put(token::NO_TIMESTAMPS, NEG_INF);
@@ -208,5 +223,8 @@ namespace tensorrt_llm::whisper {
                 auto tensor = torch::nn::functional::log_softmax(mTensor, 2);
                 return Logprobs(tensor);
             }
+
+        private:
+            at::cuda::CUDAStreamGuard mStreamGuard;
     };
 } // namespace tensorrt_llm::whisper

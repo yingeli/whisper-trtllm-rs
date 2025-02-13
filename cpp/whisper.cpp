@@ -18,8 +18,8 @@ namespace tensorrt_llm::whisper {
         tle::BeamTokens const& tokens,
         tle::StreamPtr const& streamPtr
     ) {
-        Logits logtis(tleLogits);
-        logtis.suppressNonLanguage();
+        Logits logits(tleLogits, streamPtr);
+        logits.suppressNonLanguage();
     }
 
     tle::ExecutorConfig executorConfig(const Config config, 
@@ -191,7 +191,7 @@ namespace tensorrt_llm::whisper {
         tle::BeamTokens const& tokens,
         tle::StreamPtr const& streamPtr
     ) {
-        Logits logits(tleLogits);
+        Logits logits(tleLogits, streamPtr);
 
         mMutex.lock();
         auto sampleBegin = mTranscribeContextMap[reqId].mSampleBegin;
