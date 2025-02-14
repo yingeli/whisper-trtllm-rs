@@ -7,8 +7,6 @@
 #include "tensorrt_llm/runtime/torchUtils.h"
 
 #include <torch/torch.h>
-#include <c10/cuda/CUDAStream.h>
-#include <c10/cuda/CUDAGuard.h>
 
 namespace tlr = tensorrt_llm::runtime;
 namespace tle = tensorrt_llm::executor;
@@ -157,13 +155,17 @@ namespace tensorrt_llm::whisper {
         public:
             BeamLogits(torch::Tensor tensor): BeamTensor(tensor) {}
 
+            void suppressNoTimestamps() {
+                put(token::NO_TIMESTAMPS, NEG_INF);
+            }
+
+            void suppressEndOfText() {
+                put(token::END_OF_TEXT, NEG_INF);
+            }
+
             void suppressNonLanguage() {
                 putRange(0, token::BEGIN_OF_LANGUAGE, NEG_INF);
                 putRange(token::END_OF_LANGUAGE, NEG_INF);
-            }
-
-            void suppressNoTimestamps() {
-                put(token::NO_TIMESTAMPS, NEG_INF);
             }
 
             void suppressText() {
@@ -195,10 +197,8 @@ namespace tensorrt_llm::whisper {
     class Logits: SingleBatchTensor  {
         public:
             Logits(
-                tle::Tensor& logits,
-                tle::StreamPtr const& streamPtr
-            ) : SingleBatchTensor(tlr::Torch::tensor(tle::detail::toITensor(logits))),
-                mStreamGuard(tlr::TorchUtils::stream(*streamPtr)) 
+                tle::Tensor& logits
+            ) : SingleBatchTensor(tlr::Torch::tensor(tle::detail::toITensor(logits)))
             {}
 
             void suppressNoTimestamps() {
@@ -223,8 +223,5 @@ namespace tensorrt_llm::whisper {
                 auto tensor = torch::nn::functional::log_softmax(mTensor, 2);
                 return Logprobs(tensor);
             }
-
-        private:
-            at::cuda::CUDAStreamGuard mStreamGuard;
     };
 } // namespace tensorrt_llm::whisper

@@ -6,6 +6,9 @@
 #include "tensorrt_llm/runtime/torchView.h"
 #include "tensorrt_llm/runtime/torch.h"
 
+#include <ATen/cuda/CUDAContext.h>
+#include <c10/cuda/CUDAGuard.h>
+
 #include <mutex>
 
 namespace tlr = tensorrt_llm::runtime;
@@ -18,7 +21,9 @@ namespace tensorrt_llm::whisper {
         tle::BeamTokens const& tokens,
         tle::StreamPtr const& streamPtr
     ) {
-        Logits logits(tleLogits, streamPtr);
+        at::cuda::CUDAStreamGuard guard(tlr::TorchUtils::stream(*streamPtr));
+        
+        Logits logits(tleLogits);
         logits.suppressNonLanguage();
     }
 
@@ -191,7 +196,9 @@ namespace tensorrt_llm::whisper {
         tle::BeamTokens const& tokens,
         tle::StreamPtr const& streamPtr
     ) {
-        Logits logits(tleLogits, streamPtr);
+        at::cuda::CUDAStreamGuard guard(tlr::TorchUtils::stream(*streamPtr));
+
+        Logits logits(tleLogits);
 
         mMutex.lock();
         auto sampleBegin = mTranscribeContextMap[reqId].mSampleBegin;
@@ -217,10 +224,8 @@ namespace tensorrt_llm::whisper {
 
             if (lastWasTimestamp) {
                 if (penultimateWasTimestamp) {
-                    std::cout << "beamLogits: " << beamLogits.sizes() << std::endl;
-                    std::cout << " tokens: " << beamTokens 
-                        << std::endl;
                     beamLogits.suppressTimestamps();
+                    beamLogits.suppressEndOfText();
                 } else {
                     beamLogits.suppressText();
                 }
@@ -258,8 +263,6 @@ namespace tensorrt_llm::whisper {
             auto maxTextLogprob = beamLogprobs.nonTimestamps().max();
 
             if (timestampLogprob > maxTextLogprob) {
-                std::cout << "timestampLogprob: " << timestampLogprob << " maxTextLogprob: " << maxTextLogprob << std::endl;
-                //std::cout << "tokens: " << tokens[b] << std::endl;
                 auto beamLogits = logits.beam(b);
                 beamLogits.suppressNonTimestamp();
             }

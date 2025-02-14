@@ -10,20 +10,19 @@ use std::sync::Arc;
 
 fn main() -> Result<()> {
     let whisper = Arc::new(Whisper::load("/home/coder/whisper-trtllm-rs/models/whisper_turbo_int8")?);
-    let audio = read_audio("/home/coder/whisper-trtllm-rs/models/assets/meeting-30s.wav", 16000)?;
+    let audio = read_audio("/home/coder/whisper-trtllm-rs/models/assets/oppo-th-th.wav", 16000)?;
     let lang_id = whisper.detect_language(&audio)?;
     println!("Language: {:?}", lang_id);
 
     let result = whisper.transcribe(&audio)?;
     println!("Transcription: {:?}", result);
 
-    /*
     let start = std::time::Instant::now();
     let result = whisper.detect_language(&audio)?;
     println!("time: {:?}", start.elapsed());
     println!("Result: {:?}", result);    
 
-    let n = 1; // Number of threads
+    let n = 2; // Number of threads
     let mut handles = Vec::new();
     for i in 0..n {
         let audio_clone = audio.clone();
@@ -42,7 +41,6 @@ fn main() -> Result<()> {
     for handle in handles {
         handle.join().unwrap();
     }
-    */
 
     Ok(())
 }

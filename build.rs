@@ -18,6 +18,7 @@ fn main() {
     println!("cargo:rustc-link-lib=torch");
     println!("cargo:rustc-link-lib=torch_cpu");
     println!("cargo:rustc-link-lib=torch_cuda");
+    println!("cargo:rustc-link-lib=c10_cuda");
     
     cxx_build::bridges([
         "src/sys/tensor.rs",
