@@ -5,10 +5,12 @@ edition = "2021"
 
 [dependencies]
 anyhow = "1.0.95"
+async-stream = "0.3.6"
 cxx = { version = "1.0.140", features = ["c++20"] }
+futures = "0.3.31"
 scan_fmt = "0.2.6"
 tokenizers = "0.21.0"
-tokio = "1.43.0"
+tokio = { version = "1.43.0", features = ["io-util", "time"] }
 
 [build-dependencies]
 cxx-build = "1.0.140"
@@ -17,3 +19,4 @@ cxx-build = "1.0.140"
 clap = { version = "4.5.29", features = ["derive"] }
 rand = "0.9.0"
 hound = { version = "3.5.1" }
+tokio = { version = "1.43.0", features = ["full"] }

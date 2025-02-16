@@ -16,7 +16,10 @@ class LogMelSpectrogram {
             torch::Device const& device = torch::kCUDA
         );
 
-        torch::Tensor extract(const std::span<const float> audio) const;
+        torch::Tensor extract(
+            const std::span<const float> first, 
+            const std::optional<std::span<const float>> second
+        ) const;
         //torch::Tensor extract(const std::vector<float> audio, const int padding) const;
 
     private:

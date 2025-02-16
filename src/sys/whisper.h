@@ -29,15 +29,17 @@ class Whisper {
         );
 
         IdType enqueue_detect_language_request(
-            const rust::Slice<const float> audio
+            const rust::Slice<const float> first,
+            const rust::Slice<const float> second
         );
 
-        TokenIdType await_detect_language_response(
+        uint32_t await_detect_language_response(
             IdType const &request_id
         );
 
         IdType enqueue_transcribe_request(
-            const rust::Slice<const float> audio,
+            const rust::Slice<const float> first,
+            const rust::Slice<const float> second,
             const rust::Slice<const std::uint32_t> prompt
         );
 

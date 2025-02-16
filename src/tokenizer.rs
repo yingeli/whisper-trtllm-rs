@@ -12,6 +12,8 @@ pub(crate) struct Tokenizer {
 }
 
 impl Tokenizer {
+    const TIMESTAMP_INTERVAL_MILLIS: usize = 20;
+
     pub fn from_file<T: AsRef<std::path::Path>>(path: T) -> Result<Self> {
         let inner = tokenizers::Tokenizer::from_file(path)
             .map_err(|err| anyhow!("failed to load a tokenizer: {err}"))?;
@@ -57,6 +59,14 @@ impl Tokenizer {
         id > self.no_timestamp()
     }
 
+    pub fn timestamp_to_millis(&self, id: u32) -> Option<usize> {
+        if id > self.no_timestamp() {
+            Some(((id - self.no_timestamp() - 1) as usize) * Self::TIMESTAMP_INTERVAL_MILLIS)
+        } else {
+            None
+        }
+    }
+
     pub fn token_to_id(&self, token: &str) -> Result<u32> {
         self.inner.token_to_id(token)
             .ok_or_else(|| anyhow!("failed to find the token"))
@@ -64,6 +74,13 @@ impl Tokenizer {
 
     pub fn language_token_id(&self, lang: &str) -> Result<u32> {
         self.token_to_id(format!("<|{}|>", lang).as_str())
+    }
+
+    pub fn language(&self, token: u32) -> Result<String> {
+        let token = self.inner.id_to_token(token)
+            .ok_or_else(|| anyhow!("failed to decode the given input"))?;
+        scan_fmt!(&token, "<|{}|>", String)
+            .map_err(|_err| anyhow!("failed to decode the given input"))
     }
 
     pub fn timestamp_token_id(&self, timestamp: f32) -> Result<u32> {

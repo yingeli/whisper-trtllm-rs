@@ -8,8 +8,7 @@
 
 namespace tle = tensorrt_llm::executor;
 
-const int CHUNK_SIZE = 30;
-const int SAMPLING_RATE = 16000;
+const int MAX_CHUNK_SIZE = 30 * 16000;
 const int MAX_NEW_TOKENS = 96;
 
 using tle::BatchingType;
@@ -62,7 +61,8 @@ namespace tensorrt_llm::whisper {
             );
 
             IdType enqueueDetectLanguageRequest(
-                const std::span<const float> audio
+                const std::span<const float> first,
+                const std::optional<std::span<const float>> second
             );
 
             TokenIdType awaitDetectLanguageResponse(
@@ -70,7 +70,8 @@ namespace tensorrt_llm::whisper {
             );
 
             IdType enqueueTranscribeRequest(
-                const std::span<const float> audio,
+                const std::span<const float> first,
+                const std::optional<std::span<const float>> second,
                 const tle::VecTokens prompt
             );
 

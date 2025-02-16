@@ -3,6 +3,8 @@
 #include "cnpy/cnpy.h"
 
 #include <torch/torch.h>
+#include <cuda_runtime.h>
+#include <ATen/cuda/CUDAContext.h>
 #include <string>
 #include <vector>
 #include <filesystem>
@@ -28,23 +30,62 @@ LogMelSpectrogram::LogMelSpectrogram(
     mWindow = torch::hann_window(nFFT).to(device);
 }
 
-torch::Tensor LogMelSpectrogram::extract(const std::span<const float> audio) const {
-    int padding = audio.size() % mHopLength == 0 ? 0 : mHopLength - (audio.size() % mHopLength);
-    
-    // Convert audio to tensor
-    auto device = mFilters.device();
-    torch::Tensor audioTensor = torch::from_blob(
-        (void*)audio.data(), 
-        (long)audio.size(),
-        torch::kFloat32).to(device);
+torch::Tensor LogMelSpectrogram::extract(
+    const std::span<const float> first, 
+    const std::optional<std::span<const float>> second
+) const {
+    auto totalSize = first.size() + (second.has_value() ? second.value().size() : 0);
 
+    auto device = mFilters.device();
+    
+    /*
+    torch::Tensor samples = torch::from_blob(
+        (void*)first.data(), 
+        (long)first.size(),
+        torch::kFloat32).to(device);
+    */
+
+    torch::TensorOptions options = torch::TensorOptions()
+        .dtype(torch::kFloat32)
+        .device(device);
+
+    torch::Tensor samples = torch::empty({static_cast<long>(totalSize)}, options);
+
+    float* data_ptr = samples.data_ptr<float>();
+
+    cudaStream_t stream = at::cuda::getCurrentCUDAStream().stream();
+
+    cudaMemcpyAsync(
+        data_ptr,
+        first.data(),
+        first.size_bytes(),
+        cudaMemcpyHostToDevice,
+        stream
+    );
+
+    if (second.has_value()) { 
+        auto s = second.value();
+        if (s.size() > 0) {
+            cudaMemcpyAsync(
+                data_ptr + first.size(),
+                s.data(),
+                s.size_bytes(),
+                cudaMemcpyHostToDevice,
+                stream
+            );
+        }
+    }
+
+    cudaStreamSynchronize(stream);
+
+    int padding = totalSize % mHopLength == 0 ? 0 : mHopLength - (totalSize % mHopLength);
     if (padding > 0) {
-        audioTensor = torch::nn::functional::pad(
-            audioTensor, 
+        samples = torch::nn::functional::pad(
+            samples, 
             torch::nn::functional::PadFuncOptions({0, padding}).mode(torch::kConstant).value(0));
     }
 
-    torch::Tensor stft = torch::stft(audioTensor, 
+    torch::Tensor stft = torch::stft(samples, 
         mNFFT, 
         mHopLength, 
         mNFFT, 
@@ -65,6 +106,25 @@ torch::Tensor LogMelSpectrogram::extract(const std::span<const float> audio) con
 
     return log_spec;
 }
+
+/*
+torch::Tensor LogMelSpectrogram::extract(
+    const std::span<const float> samples
+) const {
+    int padding = samples.size() % mHopLength == 0 ? 0 : mHopLength - (samples.size() % mHopLength);
+    
+    // Convert audio to tensor
+    auto device = mFilters.device();
+    torch::Tensor tensor = torch::from_blob(
+        (void*)samples.data(), 
+        (long)samples.size(),
+        torch::kFloat32).to(device);
+
+    return compute(tensor, padding);
+}
+*/
+
+
 
 /*
 torch::Tensor LogMelSpectrogram::extract(const std::vector<float> audio, const int padding) const {

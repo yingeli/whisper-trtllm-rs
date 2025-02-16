@@ -83,11 +83,12 @@ namespace tensorrt_llm::whisper {
     }
 
     IdType Whisper::enqueueDetectLanguageRequest(
-        const std::span<const float> audio
+        const std::span<const float> first,
+        const std::optional<std::span<const float>> second
     ) {
-        auto chunk = audio.size() > CHUNK_SIZE * SAMPLING_RATE ? audio.first(CHUNK_SIZE * SAMPLING_RATE) : audio;
-        
-        auto mel = mMel.extract(chunk).toType(torch::kFloat16);
+        //auto chunk = audio.size() > MAX_CHUNK_SIZE ? audio.first(MAX_CHUNK_SIZE) : audio;
+
+        auto mel = mMel.extract(first, second).toType(torch::kFloat16);
         
         int padding = 3000 - mel.size(1);
         if (padding > 0) {
@@ -124,12 +125,31 @@ namespace tensorrt_llm::whisper {
     }
 
     IdType Whisper::enqueueTranscribeRequest(
-        const std::span<const float> audio,
+        const std::span<const float> first,
+        const std::optional<std::span<const float>> second,
         const tle::VecTokens prompt
     ) {
-        auto chunk = audio.size() > CHUNK_SIZE * SAMPLING_RATE ? audio.first(CHUNK_SIZE * SAMPLING_RATE) : audio;
+        /*
+        auto sampleSize = first.size() + second.has_value() ? second.size() : 0;
+        auto chunk = sampleSize > CHUNK_SIZE * SAMPLING_RATE ? audio.first(CHUNK_SIZE * SAMPLING_RATE) : audio;
+
+        auto mel;
+        if first.size() < MAX_CHUNK_SIZE {
+            if (second.has_value()) {
+                auto chunk = second.size() > MAX_CHUNK_SIZE - first.size() ? 
+                    second.first(MAX_CHUNK_SIZE - first.size()) : second;
+                mel = mMel.extract(first).toType(torch::kFloat16);
+            } else {
+                mel = mMel.extract(first).toType(torch::kFloat16);
+            }
+        } else if first.size() == MAX_CHUNK_SIZE {
+            mel = mMel.extract(first).toType(torch::kFloat16);
+        } else {
+            mel = mMel.extract(first.first(MAX_CHUNK_SIZE)).toType(torch::kFloat16);
+        }
+        */
         
-        auto mel = mMel.extract(chunk).toType(torch::kFloat16);
+        auto mel = mMel.extract(first, second).toType(torch::kFloat16);
         
         int padding = 3000 - mel.size(1);
         if (padding > 0) {
@@ -137,7 +157,7 @@ namespace tensorrt_llm::whisper {
                 mel, 
                 torch::nn::functional::PadFuncOptions({0, padding}).mode(torch::kConstant).value(0));
         }
-        
+
         mel = mel.transpose(0, 1).contiguous();
 
         int encoderOutputLength = mel.size(0) / 2;

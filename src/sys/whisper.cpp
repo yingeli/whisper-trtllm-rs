@@ -17,28 +17,32 @@ Whisper::Whisper(
 ): _inner(model_path, config) {}
 
 IdType Whisper::enqueue_detect_language_request(
-    const rust::Slice<const float> audio
+    const rust::Slice<const float> first,
+    const rust::Slice<const float> second
 ) {
-    auto audio_span = std::span(audio.data(), audio.size());
+    auto first_span = std::span(first.data(), first.size());
+    auto second_span = std::span(second.data(), second.size());
 
-    return _inner.enqueueDetectLanguageRequest(audio_span);
+    return _inner.enqueueDetectLanguageRequest(first_span, second_span);
 }
 
-TokenIdType Whisper::await_detect_language_response(
+uint32_t Whisper::await_detect_language_response(
     IdType const &request_id
 ) {
     return _inner.awaitDetectLanguageResponse(request_id);
 }
 
 IdType Whisper::enqueue_transcribe_request(
-    const rust::Slice<const float> audio,
+    const rust::Slice<const float> first,
+    const rust::Slice<const float> second,
     const rust::Slice<const std::uint32_t> prompt
 ) {
-    auto audio_span = std::span(audio.data(), audio.size());
+    auto first_span = std::span(first.data(), first.size());
+    auto second_span = std::span(second.data(), second.size());
 
     auto prompt_vec = tle::VecTokens(prompt.begin(), prompt.end());
 
-    return _inner.enqueueTranscribeRequest(audio_span, prompt_vec);
+    return _inner.enqueueTranscribeRequest(first_span, second_span, prompt_vec);
 }
 
 TranscribeResult Whisper::await_transcribe_response(

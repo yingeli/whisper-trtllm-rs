@@ -3,6 +3,10 @@ use anyhow::{anyhow, Result};
 use super::sys;
 use super::tokenizer::Tokenizer;
 use std::sync::Mutex;
+use super::audio::Audio;
+use tokio::io::AsyncRead;
+use tokio::time::{sleep, Duration};
+use super::transcription::{Transcription, Segment};
 
 const TOKENIZER_FILENAME: &str = "tokenizer.json";
 
@@ -21,9 +25,12 @@ impl Whisper {
         Ok(Self { inner, tokenizer })
     }
 
-    pub fn detect_language(&self, audio: &[f32]) -> Result<i32> {
+    pub async fn detect_language<R: AsyncRead + Unpin>(&self, reader: R) -> Result<u32> {
+        let mut audio = Audio::new(reader);
+        let (first, second) = audio.fill_chunk().await?;
+
         let mut inner = self.inner.lock().unwrap();
-        let request_id = inner.enqueue_detect_language_request(audio)?;
+        let request_id = inner.enqueue_detect_language_request(first, second)?;
         drop(inner);
 
         loop {
@@ -43,24 +50,124 @@ impl Whisper {
         Ok(token_id)
     }
 
-    pub fn transcribe(&self, audio: &[f32]) -> Result<String> {
-        let lang_token = self.tokenizer.language_token_id("th")?;
+    pub async fn transcribe<R>(&self, reader: R, language: Option<&str>, initial_prompt: &str) -> Result<Transcription>
+    where
+        R: AsyncRead + Unpin,
+    {
+        let mut audio = Audio::new(reader);
+        
+        let (mut first, mut second) = audio.fill_chunk().await?;
+        
+        let lang = match language {
+            Some(lang) => self.tokenizer.language_token_id(lang)?,
+            None => self.detect_chunk_language(first, second).await?,
+        };
 
-        // Transcribe.
-        let mut prompt = vec![
-            self.tokenizer.start_of_prev(),
-            //self.tokenizer.timestamp_token_id(0.0)?,
-        ];
-        prompt.extend_from_slice(self.tokenizer.encode("Hi,")?.get_ids());
-        //prompt.push(self.tokenizer.timestamp_token_id(0.5)?);
+        let mut segments = Vec::new();
+        let mut prompt = self.tokenizer.encode(initial_prompt)?.get_ids().to_vec();
+        loop {
+            let mut start = 0;
+            let mut end = 0;
+            let mut start_pos = None;
+            let mut end_pos = 0;
 
-        prompt.push(self.tokenizer.start_of_transcript());
-        prompt.push(lang_token);
-        prompt.push(self.tokenizer.transcribe());
-        //prompt.push(self.tokenizer.no_timestamp());
+            println!("first: {:?}, second {:?}", first.len(), second.len());
+
+            let tokens = self.transcribe_chunk(first, second, lang, &prompt)?;
+            println!("{:?}", self.tokenizer.decode(&tokens, false)?);
+
+            for (i, token) in tokens.iter().enumerate() {
+                if let Some(millis) = self.tokenizer.timestamp_to_millis(*token) {
+                    match start_pos {
+                        Some(pos) => {
+                            if i > pos {
+                                end = millis;
+                                end_pos = i;
+                                
+                                // New segment
+                                let text = self.tokenizer.decode(&tokens[pos..end_pos], false)?;
+                                let segment = Segment::new(audio.offset() + start, audio.offset() + end, text);
+                                println!("segment: {:?}", segment);
+                                segments.push(segment);
+
+                                start_pos = None;
+                            }
+                        },
+                        None => {
+                            start = millis;
+                            start_pos = Some(i + 1);
+                        }
+                    }
+                }
+            }
+
+            if end_pos == 0 {
+                end = audio.chunk_duration();
+                end_pos = tokens.len();
+
+                // New segment
+                let text = self.tokenizer.decode(&tokens[1..], false)?;
+                let segment = Segment::new(audio.offset() + start, audio.duration(), text);
+                println!("segment: {:?}", segment);
+                segments.push(segment);
+
+                start_pos = None;
+            }
+
+            if audio.is_end() {
+                if let Some(pos) = start_pos {                  
+                    // New segment
+                    let text = self.tokenizer.decode(&tokens[pos..], false)?;
+                    let segment = Segment::new(audio.offset() + start, audio.duration(), text);
+                    println!("segment: {:?}", segment);
+                    segments.push(segment);
+                }
+                break;
+            }
+
+            audio.consume(end);
+            (first, second) = audio.fill_chunk().await?;
+            prompt.extend_from_slice(&tokens[..end_pos]);
+        }
+
+        let transcription = Transcription::new(self.tokenizer.language(lang)?, segments);
+
+        Ok(transcription)
+    }
+
+    pub async fn detect_chunk_language(&self, first: &[f32], second: &[f32]) -> Result<u32> {
+        let mut inner = self.inner.lock().unwrap();
+        let request_id = inner.enqueue_detect_language_request(first, second)?;
+        drop(inner);
+
+        loop {
+            let inner = self.inner.lock().unwrap();
+            if inner.is_response_ready(&request_id)? {
+                break;
+            }
+            drop(inner);
+            sleep(Duration::from_millis(10)).await;
+        }
 
         let mut inner = self.inner.lock().unwrap();
-        let request_id = inner.enqueue_transcribe_request(audio, prompt.as_slice())?;
+        let token_id = inner.await_detect_language_response(&request_id)?;
+
+        Ok(token_id)
+    }
+
+    pub fn transcribe_chunk(&self, first: &[f32], second: &[f32], language: u32, prompt: &[u32]) -> Result<Vec<u32>> {
+        let mut input = vec![];
+        //input.push(self.tokenizer.start_of_prev());
+        //input.extend_from_slice(prompt);
+        input.push(self.tokenizer.start_of_transcript());
+        input.push(language);
+        input.push(self.tokenizer.transcribe());
+        //prompt.push(self.tokenizer.no_timestamp());
+
+        println!("{:?}", input);
+
+        let mut inner = self.inner.lock().unwrap();
+        let request_id = inner.enqueue_transcribe_request(first, second, input.as_slice())?;
         drop(inner);
 
         loop {
@@ -75,8 +182,9 @@ impl Whisper {
         let mut inner = self.inner.lock().unwrap();
         let result = inner.await_transcribe_response(&request_id)?;
 
-        let output = self.tokenizer.decode(result.tokens.as_slice(), false)?;
+        //let output = self.tokenizer.decode(result.tokens.as_slice(), false)?;
 
+        let output = result.tokens[input.len()..].to_vec();
         Ok(output)
     }
 }

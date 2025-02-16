@@ -43,17 +43,19 @@ mod ffi {
 
         fn enqueue_detect_language_request(
             self: Pin<&mut Whisper>,
-            audio: &[f32],
+            first: &[f32],
+            second: &[f32],
         ) -> Result<u64>;
 
         fn await_detect_language_response(
             self: Pin<&mut Whisper>,
             request_id: &u64,
-        ) -> Result<i32>;
+        ) -> Result<u32>;
 
         fn enqueue_transcribe_request(
             self: Pin<&mut Whisper>,
-            audio: &[f32],
+            first: &[f32],
+            second: &[f32],
             prompt: &[u32],
         ) -> Result<u64>;
 
@@ -125,18 +127,18 @@ impl Whisper {
         Ok(Self { ptr })
     }
 
-    pub fn enqueue_detect_language_request(&mut self, audio: &[f32]) -> Result<u64> {
-        self.ptr.pin_mut().enqueue_detect_language_request(audio)
+    pub fn enqueue_detect_language_request(&mut self, first: &[f32], second: &[f32]) -> Result<u64> {
+        self.ptr.pin_mut().enqueue_detect_language_request(first, second)
             .map_err(|e| anyhow!("failed to enqueue transcribe request: {e}"))
     }
 
-    pub fn await_detect_language_response(&mut self, request_id: &u64) -> Result<i32> {
+    pub fn await_detect_language_response(&mut self, request_id: &u64) -> Result<u32> {
         self.ptr.pin_mut().await_detect_language_response(request_id)
             .map_err(|e| anyhow!("failed to get transcribe response: {e}"))
     }
 
-    pub fn enqueue_transcribe_request(&mut self, audio: &[f32], prompt: &[u32]) -> Result<u64> {
-        self.ptr.pin_mut().enqueue_transcribe_request(audio, prompt)
+    pub fn enqueue_transcribe_request(&mut self, first: &[f32], second: &[f32], prompt: &[u32]) -> Result<u64> {
+        self.ptr.pin_mut().enqueue_transcribe_request(first, second, prompt)
             .map_err(|e| anyhow!("failed to enqueue transcribe request: {e}"))
     }
 
