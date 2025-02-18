@@ -50,19 +50,19 @@ async fn main() -> Result<()> {
 
     let n = 2; // Number of threads
     let mut handles = Vec::new();
+    let start = std::time::Instant::now();
     for i in 0..n {
         //let audio_clone = audio.clone();
         let whisper_clone = whisper.clone();
         handles.push(tokio::spawn( async move {
-            loop {
+            for i in 0..10 {
                 let mut audio = File::open("/home/coder/whisper-trtllm-rs/models/assets/meeting-30s.wav").await.unwrap();
                 audio.seek(SeekFrom::Start(44)).await.unwrap();
                 let reader = BufReader::new(audio);
-                let start = std::time::Instant::now();
+                let starti = std::time::Instant::now();
                 let result = whisper_clone.detect_language(reader).await.unwrap();
-                println!("Thread {} time: {:?}", i, start.elapsed());
-                println!("Time elapsed: {:?}", result);
-                break;
+                println!("Thread {} time: {:?}", i, starti.elapsed());
+                //break;
             }
         }));
     }
@@ -70,6 +70,8 @@ async fn main() -> Result<()> {
     for handle in handles {
         handle.await.unwrap();
     }
+    println!("Time: {:?}", start.elapsed());
+    println!("RPS: {:?}", n as f32 * 10.0 / start.elapsed().as_millis() as f32 * 1000 as f32);
 
     Ok(())
 }
