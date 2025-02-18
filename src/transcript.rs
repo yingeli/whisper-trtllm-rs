@@ -3,12 +3,12 @@ use async_stream::stream;
 use tokio::time::{sleep, Duration};
 
 #[derive(Debug)]
-pub struct Transcription {
+pub struct Transcript {
     language: String,
     segments: Vec<Segment>,
 }
 
-impl Transcription {
+impl Transcript {
     pub fn new(language: String, segments: Vec<Segment>) -> Self {
         Self {
             language,

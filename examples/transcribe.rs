@@ -4,47 +4,72 @@ use whisper_trtllm_rs::Whisper;
 use hound::WavReader;
 use std::sync::Arc;
 use tokio::fs::File;
-use tokio::io::{self, AsyncReadExt, AsyncSeekExt, SeekFrom};
+use tokio::io::{self, AsyncReadExt, AsyncSeekExt, SeekFrom, BufReader};
 
 #[tokio::main]
 async fn main() -> Result<()> {
     let whisper = Arc::new(Whisper::load("/home/coder/whisper-trtllm-rs/models/whisper_turbo_int8")?);
     //let audio = read_audio("/home/coder/whisper-trtllm-rs/models/assets/meeting-30s.wav", 16000)?;
-    let mut audio = File::open("/home/coder/whisper-trtllm-rs/models/assets/oppo-en-us.wav").await?;
+    let mut audio = File::open("/home/coder/whisper-trtllm-rs/models/assets/meeting-30s.wav").await?;
     audio.seek(SeekFrom::Start(44)).await?;
 
-    //let lang_id = whisper.detect_language(&audio)?;
-    //println!("Language: {:?}", lang_id);
+    let reader = BufReader::new(audio);
 
-    let result = whisper.transcribe(audio, Some("en"), " hi").await?;
+    let lang_id = whisper.detect_language(reader).await?;
+    println!("Language: {:?}", lang_id);
+
+    let mut audio = File::open("/home/coder/whisper-trtllm-rs/models/assets/meeting-30s.wav").await?;
+    audio.seek(SeekFrom::Start(44)).await?;
+
+    let reader = BufReader::new(audio);
+
+    let start = std::time::Instant::now();
+    let lang_id = whisper.detect_language(reader).await?;
+    println!("Language: {:?}", lang_id);
+    println!("Time elapsed: {:?}", start.elapsed());
+
+    /*
+    let result = whisper.transcribe(reader, Some("en"), "<|0.00|> hi, everyone.<|1.20|>").await?;
+
+    let mut audio = File::open("/home/coder/whisper-trtllm-rs/models/assets/oppo-en-us.wav").await?;
+    audio.seek(SeekFrom::Start(44)).await?;
+    let reader = BufReader::new(audio);
+
+    let start = std::time::Instant::now();
+    let result = whisper.transcribe(reader, Some("en"), "<|0.00|> hi, guys.<|1.20|>").await?;
     println!("Transcription: {:?}", result);
+    println!("time: {:?}", start.elapsed());
+    */
 
     /*
     let start = std::time::Instant::now();
     let result = whisper.detect_language(&audio)?;
     println!("time: {:?}", start.elapsed());
-    println!("Result: {:?}", result);    
+    println!("Result: {:?}", result);
+    */   
 
-    let n = 1; // Number of threads
+    let n = 2; // Number of threads
     let mut handles = Vec::new();
     for i in 0..n {
-        let audio_clone = audio.clone();
+        //let audio_clone = audio.clone();
         let whisper_clone = whisper.clone();
-        handles.push(std::thread::spawn(move || {
+        handles.push(tokio::spawn( async move {
             loop {
+                let mut audio = File::open("/home/coder/whisper-trtllm-rs/models/assets/meeting-30s.wav").await.unwrap();
+                audio.seek(SeekFrom::Start(44)).await.unwrap();
+                let reader = BufReader::new(audio);
                 let start = std::time::Instant::now();
-                let result = whisper_clone.transcribe(&audio_clone).unwrap();
+                let result = whisper_clone.detect_language(reader).await.unwrap();
                 println!("Thread {} time: {:?}", i, start.elapsed());
-                println!("Result: {:?}", result);
+                println!("Time elapsed: {:?}", result);
                 break;
             }
         }));
     }
 
     for handle in handles {
-        handle.join().unwrap();
+        handle.await.unwrap();
     }
-    */
 
     Ok(())
 }

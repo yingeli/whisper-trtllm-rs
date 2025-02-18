@@ -2,5 +2,5 @@ mod sys;
 mod whisper;
 mod tokenizer;
 mod audio;
-mod transcription;
+mod transcript;
 pub use whisper::Whisper;

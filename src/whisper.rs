@@ -6,7 +6,7 @@ use std::sync::Mutex;
 use super::audio::Audio;
 use tokio::io::AsyncRead;
 use tokio::time::{sleep, Duration};
-use super::transcription::{Transcription, Segment};
+use super::transcript::{Transcript, Segment};
 
 const TOKENIZER_FILENAME: &str = "tokenizer.json";
 
@@ -50,13 +50,15 @@ impl Whisper {
         Ok(token_id)
     }
 
-    pub async fn transcribe<R>(&self, reader: R, language: Option<&str>, initial_prompt: &str) -> Result<Transcription>
+    pub async fn transcribe<R>(&self, reader: R, language: Option<&str>, initial_prompt: &str) -> Result<Transcript>
     where
         R: AsyncRead + Unpin,
     {
         let mut audio = Audio::new(reader);
         
+        let start = std::time::Instant::now();
         let (mut first, mut second) = audio.fill_chunk().await?;
+        println!("fill_chunk: {:?}", start.elapsed());
         
         let lang = match language {
             Some(lang) => self.tokenizer.language_token_id(lang)?,
@@ -73,7 +75,7 @@ impl Whisper {
 
             println!("first: {:?}, second {:?}", first.len(), second.len());
 
-            let tokens = self.transcribe_chunk(first, second, lang, &prompt)?;
+            let tokens = self.transcribe_chunk(first, second, lang, &prompt).await?;
             println!("{:?}", self.tokenizer.decode(&tokens, false)?);
 
             for (i, token) in tokens.iter().enumerate() {
@@ -130,9 +132,9 @@ impl Whisper {
             prompt.extend_from_slice(&tokens[..end_pos]);
         }
 
-        let transcription = Transcription::new(self.tokenizer.language(lang)?, segments);
+        let transcript = Transcript::new(self.tokenizer.language(lang)?, segments);
 
-        Ok(transcription)
+        Ok(transcript)
     }
 
     pub async fn detect_chunk_language(&self, first: &[f32], second: &[f32]) -> Result<u32> {
@@ -155,7 +157,7 @@ impl Whisper {
         Ok(token_id)
     }
 
-    pub fn transcribe_chunk(&self, first: &[f32], second: &[f32], language: u32, prompt: &[u32]) -> Result<Vec<u32>> {
+    pub async fn transcribe_chunk(&self, first: &[f32], second: &[f32], language: u32, prompt: &[u32]) -> Result<Vec<u32>> {
         let mut input = vec![];
         //input.push(self.tokenizer.start_of_prev());
         //input.extend_from_slice(prompt);
@@ -163,8 +165,6 @@ impl Whisper {
         input.push(language);
         input.push(self.tokenizer.transcribe());
         //prompt.push(self.tokenizer.no_timestamp());
-
-        println!("{:?}", input);
 
         let mut inner = self.inner.lock().unwrap();
         let request_id = inner.enqueue_transcribe_request(first, second, input.as_slice())?;
@@ -176,7 +176,8 @@ impl Whisper {
                 break;
             }
             drop(inner);
-            std::thread::sleep(std::time::Duration::from_millis(10));
+            //std::thread::sleep(std::time::Duration::from_millis(10));
+            sleep(Duration::from_millis(10)).await;
         }
 
         let mut inner = self.inner.lock().unwrap();

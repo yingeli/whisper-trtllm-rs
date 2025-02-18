@@ -120,8 +120,8 @@ namespace tensorrt_llm::whisper {
             }
 
             torch::Half logsumexp() {
-                //return mTensor.logsumexp(0).item<torch::Half>();
-                return torch::logsumexp(mTensor, 0).item<torch::Half>();
+                return mTensor.logsumexp(0).item<torch::Half>();
+                //return torch::logsumexp(mTensor, 0).item<torch::Half>();
             }
 
         protected:

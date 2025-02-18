@@ -26,8 +26,8 @@ namespace tensorrt_llm::whisper {
     };
 
     struct TranscribeContext {
-        std::size_t mSampleBegin;
-        torch::Half mPrevTimestampLogProb;
+        std::size_t sampleBegin;
+        torch::Half prevTimestampLogprob;
     };
     
     class TranscribeLogitsProcessor {
