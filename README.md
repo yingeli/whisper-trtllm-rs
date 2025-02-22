@@ -9,6 +9,7 @@ python3 ./scripts/build_wheel.py --cuda_architectures "75-real" --trt_root /usr/
 python3 ./scripts/build_wheel.py --cuda_architectures native --trt_root /usr/local/tensorrt --cpp_only --clean
 
 
+sudo apt install libopenmpi-dev
 
 export LIBTORCH_BYPASS_VERSION_CHECK=1
 export LIBTORCH_USE_PYTORCH=1

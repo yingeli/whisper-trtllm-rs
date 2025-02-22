@@ -10,7 +10,7 @@ use tokio::io::{self, AsyncReadExt, AsyncSeekExt, SeekFrom, BufReader};
 async fn main() -> Result<()> {
     let whisper = Arc::new(Whisper::load("/home/coder/whisper-trtllm-rs/models/whisper_turbo_int8")?);
     //let audio = read_audio("/home/coder/whisper-trtllm-rs/models/assets/meeting-30s.wav", 16000)?;
-    let mut audio = File::open("/home/coder/whisper-trtllm-rs/models/assets/meeting-30s.wav").await?;
+    let mut audio = File::open("/home/coder/whisper-trtllm-rs/models/assets/oppo-en-us.wav").await?;
     audio.seek(SeekFrom::Start(44)).await?;
 
     let reader = BufReader::new(audio);
@@ -18,7 +18,7 @@ async fn main() -> Result<()> {
     let lang_id = whisper.detect_language(reader).await?;
     println!("Language: {:?}", lang_id);
 
-    let mut audio = File::open("/home/coder/whisper-trtllm-rs/models/assets/meeting-30s.wav").await?;
+    let mut audio = File::open("/home/coder/whisper-trtllm-rs/models/assets/oppo-en-us.wav").await?;
     audio.seek(SeekFrom::Start(44)).await?;
 
     let reader = BufReader::new(audio);
@@ -48,7 +48,7 @@ async fn main() -> Result<()> {
     println!("Result: {:?}", result);
     */   
 
-    let n = 2; // Number of threads
+    let n = 1; // Number of threads
     let mut handles = Vec::new();
     let start = std::time::Instant::now();
     for i in 0..n {
@@ -56,7 +56,7 @@ async fn main() -> Result<()> {
         let whisper_clone = whisper.clone();
         handles.push(tokio::spawn( async move {
             for i in 0..10 {
-                let mut audio = File::open("/home/coder/whisper-trtllm-rs/models/assets/meeting-30s.wav").await.unwrap();
+                let mut audio = File::open("/home/coder/whisper-trtllm-rs/models/assets/oppo-en-us.wav").await.unwrap();
                 audio.seek(SeekFrom::Start(44)).await.unwrap();
                 let reader = BufReader::new(audio);
                 let starti = std::time::Instant::now();

@@ -25,7 +25,7 @@ impl Whisper {
         Ok(Self { inner, tokenizer })
     }
 
-    pub async fn detect_language<R: AsyncRead + Unpin>(&self, reader: R) -> Result<u32> {
+    pub async fn detect_language<R: AsyncRead + Unpin>(&self, reader: R) -> Result<String> {
         let mut audio = Audio::new(reader);
         let (first, second) = audio.fill_chunk().await?;
 
@@ -43,11 +43,11 @@ impl Whisper {
         }
 
         let mut inner = self.inner.lock().unwrap();
-        let token_id = inner.await_detect_language_response(&request_id)?;
+        let token = inner.await_detect_language_response(&request_id)?;
 
-        //let output = self.tokenizer.decode(result.tokens.as_slice(), false)?;
+        let lang = self.tokenizer.language(token)?;
 
-        Ok(token_id)
+        Ok(lang)
     }
 
     pub async fn transcribe<R>(&self, reader: R, language: Option<&str>, initial_prompt: &str) -> Result<Transcript>
