@@ -48,7 +48,7 @@ async fn main() -> Result<()> {
     println!("Result: {:?}", result);
     */   
 
-    let n = 1; // Number of threads
+    let n = 4; // Number of threads
     let mut handles = Vec::new();
     let start = std::time::Instant::now();
     for i in 0..n {

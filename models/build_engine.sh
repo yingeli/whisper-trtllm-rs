@@ -4,7 +4,7 @@ pip install -r requirements.txt
 
 INFERENCE_PRECISION=float16
 WEIGHT_ONLY_PRECISION=int8
-MAX_BEAM_WIDTH=4
+MAX_BEAM_WIDTH=1
 MAX_BATCH_SIZE=2
 checkpoint_dir=whisper_turbo_weights_${WEIGHT_ONLY_PRECISION}
 output_dir=whisper_turbo_${WEIGHT_ONLY_PRECISION}
@@ -24,21 +24,6 @@ trtllm-build  --checkpoint_dir ${checkpoint_dir}/encoder \
               --gemm_plugin disable \
               --bert_attention_plugin ${INFERENCE_PRECISION} \
               --max_input_len 3000 --max_seq_len=3000 \
-              --context_fmha disable \
-              --kv_cache_type continuous \
-              --remove_input_padding disable
-
-trtllm-build  --checkpoint_dir ${checkpoint_dir}/decoder \
-              --output_dir ${output_dir}/decoder \
-              --moe_plugin disable \
-              --max_beam_width ${MAX_BEAM_WIDTH} \
-              --max_batch_size ${MAX_BATCH_SIZE} \
-              --max_seq_len 448 \
-              --max_input_len 256 \
-              --max_encoder_input_len 3000 \
-              --gemm_plugin ${INFERENCE_PRECISION} \
-              --bert_attention_plugin ${INFERENCE_PRECISION} \
-              --gpt_attention_plugin ${INFERENCE_PRECISION} \
               --context_fmha disable \
               --kv_cache_type continuous \
               --remove_input_padding disable

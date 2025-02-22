@@ -13,3 +13,12 @@ sudo apt install libopenmpi-dev
 
 export LIBTORCH_BYPASS_VERSION_CHECK=1
 export LIBTORCH_USE_PYTORCH=1
+
+export AZURE_STORAGE_CONNECTION_STRING=$(az storage account show-connection-string \
+  --name mystorageaccount --query connectionString -o 
+
+az storage blob upload-batch \
+  --source /path/to/your/directory \
+  --destination mycontainer
+
+  
