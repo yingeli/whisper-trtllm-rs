@@ -7,11 +7,12 @@ use super::audio::Audio;
 use tokio::io::AsyncRead;
 use tokio::time::{sleep, Duration};
 use super::transcript::{Transcript, Segment};
+use std::sync::Arc;
 
 const TOKENIZER_FILENAME: &str = "tokenizer.json";
 
 pub struct Whisper {
-    inner: Mutex<sys::Whisper>,
+    inner: Arc<Mutex<sys::Whisper>>,
     tokenizer: Tokenizer,
 }
 
@@ -23,7 +24,7 @@ impl Whisper {
         let config = sys::Config {
             batching_type: sys::BatchingType::Inflight,
         };
-        let inner = Mutex::new(sys::Whisper::load(&model_path, config)?);
+        let inner = Arc::new(Mutex::new(sys::Whisper::load(&model_path, config)?));
         let tokenizer = Tokenizer::from_file(model_path.as_ref().join(TOKENIZER_FILENAME))?;
         Ok(Self { inner, tokenizer })
     }
