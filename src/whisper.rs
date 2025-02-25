@@ -152,7 +152,7 @@ impl Whisper {
                 break;
             }
             drop(inner);
-            sleep(Duration::from_millis(10)).await;
+            sleep(Duration::from_millis(5)).await;
         }
 
         let mut inner = self.inner.lock().await;
@@ -185,7 +185,7 @@ impl Whisper {
             }
             drop(inner);
             //std::thread::sleep(std::time::Duration::from_millis(10));
-            sleep(Duration::from_millis(10)).await;
+            sleep(Duration::from_millis(5)).await;
         }
 
         let mut inner = self.inner.lock().await;
