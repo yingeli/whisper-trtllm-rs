@@ -15,6 +15,8 @@ pub struct Whisper {
     tokenizer: Tokenizer,
 }
 
+unsafe impl Send for Whisper {}
+
 impl Whisper {
     pub fn load<T: AsRef<Path>>(model_path: T) -> Result<Self> {
         let config = sys::Config {
