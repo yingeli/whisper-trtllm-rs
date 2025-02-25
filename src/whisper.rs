@@ -16,6 +16,7 @@ pub struct Whisper {
 }
 
 unsafe impl Send for Whisper {}
+unsafe impl Sync for Whisper {}
 
 impl Whisper {
     pub fn load<T: AsRef<Path>>(model_path: T) -> Result<Self> {
