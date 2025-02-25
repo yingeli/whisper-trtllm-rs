@@ -1,8 +1,9 @@
 use futures::{Stream, StreamExt};
 use async_stream::stream;
 use tokio::time::{sleep, Duration};
+use serde::Serialize;
 
-#[derive(Debug)]
+#[derive(Debug, Serialize)]
 pub struct Transcript {
     language: String,
     segments: Vec<Segment>,
@@ -32,7 +33,7 @@ impl Transcript {
     */
 }
 
-#[derive(Debug)]
+#[derive(Debug, Serialize)]
 pub struct Segment {
     start: usize,
     end: usize,
