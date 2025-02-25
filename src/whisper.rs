@@ -50,7 +50,7 @@ impl Whisper {
         Ok(lang)
     }
 
-    pub async fn transcribe<R>(&self, reader: R, language: Option<&str>, initial_prompt: &str) -> Result<Transcript>
+    pub async fn transcribe<R>(&self, reader: R, language: Option<String>, initial_prompt: Option<String>) -> Result<Transcript>
     where
         R: AsyncRead + Unpin,
     {
@@ -61,12 +61,16 @@ impl Whisper {
         println!("fill_chunk: {:?}", start.elapsed());
         
         let lang = match language {
-            Some(lang) => self.tokenizer.language_token_id(lang)?,
+            Some(lang) => self.tokenizer.language_token_id(&lang)?,
             None => self.detect_chunk_language(first, second).await?,
         };
 
         let mut segments = Vec::new();
-        let mut prompt = self.tokenizer.encode(initial_prompt)?.get_ids().to_vec();
+        let mut prompt = None;
+        if let Some(initial_prompt) = initial_prompt {
+            prompt = Some(self.tokenizer.encode(&initial_prompt)?.get_ids().to_vec());
+        }
+
         loop {
             let mut start = 0;
             let mut end = 0;
@@ -75,7 +79,7 @@ impl Whisper {
 
             println!("first: {:?}, second {:?}", first.len(), second.len());
 
-            let tokens = self.transcribe_chunk(first, second, lang, &prompt).await?;
+            let tokens = self.transcribe_chunk(first, second, lang, prompt).await?;
             println!("{:?}", self.tokenizer.decode(&tokens, false)?);
 
             for (i, token) in tokens.iter().enumerate() {
@@ -129,7 +133,7 @@ impl Whisper {
 
             audio.consume(end);
             (first, second) = audio.fill_chunk().await?;
-            prompt.extend_from_slice(&tokens[..end_pos]);
+            prompt = Some(tokens[..end_pos].to_vec());
         }
 
         let transcript = Transcript::new(self.tokenizer.language(lang)?, segments);
@@ -157,10 +161,14 @@ impl Whisper {
         Ok(token_id)
     }
 
-    pub async fn transcribe_chunk(&self, first: &[f32], second: &[f32], language: u32, prompt: &[u32]) -> Result<Vec<u32>> {
+    pub async fn transcribe_chunk(&self, first: &[f32], second: &[f32], language: u32, prompt: Option<Vec<u32>>) -> Result<Vec<u32>> {
         let mut input = vec![];
-        //input.push(self.tokenizer.start_of_prev());
-        //input.extend_from_slice(prompt);
+        
+        if let Some(p) = prompt {
+            input.push(self.tokenizer.start_of_prev());
+            input.extend_from_slice(&p);
+        }
+
         input.push(self.tokenizer.start_of_transcript());
         input.push(language);
         input.push(self.tokenizer.transcribe());
