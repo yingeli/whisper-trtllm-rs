@@ -2,29 +2,25 @@ use std::path::Path;
 use anyhow::{anyhow, Result};
 use super::sys;
 use super::tokenizer::Tokenizer;
-use std::sync::Mutex;
+use tokio::sync::Mutex;
 use super::audio::Audio;
 use tokio::io::AsyncRead;
 use tokio::time::{sleep, Duration};
 use super::transcript::{Transcript, Segment};
-use std::sync::Arc;
 
 const TOKENIZER_FILENAME: &str = "tokenizer.json";
 
 pub struct Whisper {
-    inner: Arc<Mutex<sys::Whisper>>,
+    inner: Mutex<sys::Whisper>,
     tokenizer: Tokenizer,
 }
-
-unsafe impl Send for Whisper {}
-unsafe impl Sync for Whisper {}
 
 impl Whisper {
     pub fn load<T: AsRef<Path>>(model_path: T) -> Result<Self> {
         let config = sys::Config {
             batching_type: sys::BatchingType::Inflight,
         };
-        let inner = Arc::new(Mutex::new(sys::Whisper::load(&model_path, config)?));
+        let inner = Mutex::new(sys::Whisper::load(&model_path, config)?);
         let tokenizer = Tokenizer::from_file(model_path.as_ref().join(TOKENIZER_FILENAME))?;
         Ok(Self { inner, tokenizer })
     }
@@ -33,20 +29,20 @@ impl Whisper {
         let mut audio = Audio::new(reader);
         let (first, second) = audio.fill_chunk().await?;
 
-        let mut inner = self.inner.lock().unwrap();
+        let mut inner = self.inner.lock().await;
         let request_id = inner.enqueue_detect_language_request(first, second)?;
         drop(inner);
 
         loop {
-            let inner = self.inner.lock().unwrap();
+            let inner = self.inner.lock().await;
             if inner.is_response_ready(&request_id)? {
                 break;
             }
             drop(inner);
-            std::thread::sleep(std::time::Duration::from_millis(10));
+            sleep(std::time::Duration::from_millis(10)).await;
         }
 
-        let mut inner = self.inner.lock().unwrap();
+        let mut inner = self.inner.lock().await;
         let token = inner.await_detect_language_response(&request_id)?;
 
         let lang = self.tokenizer.language(token)?;
@@ -146,12 +142,12 @@ impl Whisper {
     }
 
     pub async fn detect_chunk_language(&self, first: &[f32], second: &[f32]) -> Result<u32> {
-        let mut inner = self.inner.lock().unwrap();
+        let mut inner = self.inner.lock().await;
         let request_id = inner.enqueue_detect_language_request(first, second)?;
         drop(inner);
 
         loop {
-            let inner = self.inner.lock().unwrap();
+            let inner = self.inner.lock().await;
             if inner.is_response_ready(&request_id)? {
                 break;
             }
@@ -159,7 +155,7 @@ impl Whisper {
             sleep(Duration::from_millis(10)).await;
         }
 
-        let mut inner = self.inner.lock().unwrap();
+        let mut inner = self.inner.lock().await;
         let token_id = inner.await_detect_language_response(&request_id)?;
 
         Ok(token_id)
@@ -178,12 +174,12 @@ impl Whisper {
         input.push(self.tokenizer.transcribe());
         //prompt.push(self.tokenizer.no_timestamp());
 
-        let mut inner = self.inner.lock().unwrap();
+        let mut inner = self.inner.lock().await;
         let request_id = inner.enqueue_transcribe_request(first, second, input.as_slice())?;
         drop(inner);
 
         loop {
-            let inner = self.inner.lock().unwrap();
+            let inner = self.inner.lock().await;
             if inner.is_response_ready(&request_id)? {
                 break;
             }
@@ -192,7 +188,7 @@ impl Whisper {
             sleep(Duration::from_millis(10)).await;
         }
 
-        let mut inner = self.inner.lock().unwrap();
+        let mut inner = self.inner.lock().await;
         let result = inner.await_transcribe_response(&request_id)?;
 
         //let output = self.tokenizer.decode(result.tokens.as_slice(), false)?;
