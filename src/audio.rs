@@ -6,6 +6,7 @@ pub(crate) struct Audio<R> {
     reader: R,
     buffer: VecDeque<f32>,
     offset: usize,
+    is_end: bool,
 }
 
 impl<R: AsyncRead + Unpin> Audio<R> {
@@ -15,8 +16,9 @@ impl<R: AsyncRead + Unpin> Audio<R> {
     pub fn new(reader: R) -> Self {
         Self {
             reader,
-            buffer: VecDeque::with_capacity(Self::CHUNK_SIZE),
+            buffer: VecDeque::with_capacity(Self::CHUNK_SIZE * 2),
             offset: 0,
+            is_end: false,
         }
     }
 
@@ -28,23 +30,63 @@ impl<R: AsyncRead + Unpin> Audio<R> {
         self.offset + self.buffer.len() / Self::SAMPLES_PER_MILLIS
     }
 
-    pub fn chunk_duration(&self) -> usize {
-        self.buffer.len() / Self::SAMPLES_PER_MILLIS
+    pub fn chunk(&self) -> (&[f32], &[f32]) {
+        let (first, second) = self.buffer.as_slices();
+        let total_len = self.buffer.len().min(Self::CHUNK_SIZE);
+        
+        if first.len() >= total_len {
+            // If first slice has enough elements, return first slice and empty second slice
+            (&first[..total_len], &[])
+        } else {
+            // If we need elements from both slices
+            let second_len = total_len - first.len();
+            (first, &second[..second_len])
+        }
     }
 
-    pub async fn fill_chunk(&mut self) -> Result<(&[f32], &[f32])> {
-        while self.buffer.len() < Self::CHUNK_SIZE {
+    pub fn chunk_duration(&self) -> usize {
+        self.buffer.len().min(Self::CHUNK_SIZE)  / Self::SAMPLES_PER_MILLIS
+    }
+
+    pub fn chunk_start(&self) -> usize {
+        self.offset
+    }
+
+    pub fn chunk_end(&self) -> usize {
+        self.offset + self.chunk_duration()
+    }
+
+    pub async fn fill_chunk(&mut self) -> Result<()> {
+        while self.buffer.len() < Self::CHUNK_SIZE && !self.is_end {
             match self.reader.read_i16_le().await {
                 Ok(sample) => self.buffer.push_back(sample as f32 / i16::MAX as f32),
                 Err(e) => {
                     if e.kind() != std::io::ErrorKind::UnexpectedEof {
                         return Err(anyhow!(e));
                     }
+                    self.is_end = true;
                     break;
                 }
             }
         }
-        Ok(self.buffer.as_slices())
+        // k(self.buffer.as_slices())
+        Ok(())
+    }
+
+    pub async fn fill(&mut self) -> Result<()> {
+        while self.buffer.len() < Self::CHUNK_SIZE * 2 && !self.is_end {
+            match self.reader.read_i16_le().await {
+                Ok(sample) => self.buffer.push_back(sample as f32 / i16::MAX as f32),
+                Err(e) => {
+                    if e.kind() != std::io::ErrorKind::UnexpectedEof {
+                        return Err(anyhow!(e));
+                    }
+                    self.is_end = true;
+                    break;
+                }
+            }
+        }
+        Ok(())
     }
 
     pub fn consume(&mut self, millis: usize) {
@@ -53,6 +95,6 @@ impl<R: AsyncRead + Unpin> Audio<R> {
     }
 
     pub fn is_end(&self) -> bool {
-        self.buffer.len() < Self::CHUNK_SIZE
+        self.is_end && self.buffer.len() <= Self::CHUNK_SIZE
     }
 }

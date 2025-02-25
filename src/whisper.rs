@@ -27,7 +27,8 @@ impl Whisper {
 
     pub async fn detect_language<R: AsyncRead + Unpin>(&self, reader: R) -> Result<String> {
         let mut audio = Audio::new(reader);
-        let (first, second) = audio.fill_chunk().await?;
+        audio.fill_chunk().await?;
+        let (first, second) = audio.chunk();
 
         let mut inner = self.inner.lock().await;
         let request_id = inner.enqueue_detect_language_request(first, second)?;
@@ -50,19 +51,22 @@ impl Whisper {
         Ok(lang)
     }
 
-    pub async fn transcribe<R>(&self, reader: R, language: Option<String>, initial_prompt: Option<String>) -> Result<Transcript>
+    pub async fn transcribe<R: AsyncRead + Unpin>(&self, reader: R, language: Option<String>, initial_prompt: Option<String>) -> Result<Transcript>
     where
         R: AsyncRead + Unpin,
     {
         let mut audio = Audio::new(reader);
         
-        let start = std::time::Instant::now();
-        let (mut first, mut second) = audio.fill_chunk().await?;
-        println!("fill_chunk: {:?}", start.elapsed());
+        //let start = std::time::Instant::now();
+        audio.fill_chunk().await?;
+        //println!("fill_chunk: {:?}", start.elapsed());
         
         let lang = match language {
             Some(lang) => self.tokenizer.language_token_id(&lang)?,
-            None => self.detect_chunk_language(first, second).await?,
+            None => {
+                let (first, second) = audio.chunk();
+                self.detect_chunk_language(first, second).await?
+            },
         };
 
         let mut segments = Vec::new();
@@ -76,11 +80,10 @@ impl Whisper {
             let mut end = 0;
             let mut start_pos = None;
             let mut end_pos = 0;
+            //println!("first: {:?}, second {:?}", first.len(), second.len());
 
-            println!("first: {:?}, second {:?}", first.len(), second.len());
-
-            let tokens = self.transcribe_chunk(first, second, lang, prompt).await?;
-            println!("{:?}", self.tokenizer.decode(&tokens, false)?);
+            let tokens = self.transcribe_chunk(&mut audio, lang, prompt).await?;
+            //println!("{:?}", self.tokenizer.decode(&tokens, false)?);
 
             for (i, token) in tokens.iter().enumerate() {
                 if let Some(millis) = self.tokenizer.timestamp_to_millis(*token) {
@@ -93,7 +96,6 @@ impl Whisper {
                                 // New segment
                                 let text = self.tokenizer.decode(&tokens[pos..end_pos], false)?;
                                 let segment = Segment::new(audio.offset() + start, audio.offset() + end, text);
-                                println!("segment: {:?}", segment);
                                 segments.push(segment);
 
                                 start_pos = None;
@@ -113,8 +115,7 @@ impl Whisper {
 
                 // New segment
                 let text = self.tokenizer.decode(&tokens[1..], false)?;
-                let segment = Segment::new(audio.offset() + start, audio.duration(), text);
-                println!("segment: {:?}", segment);
+                let segment = Segment::new(audio.offset() + start, audio.chunk_end(), text);
                 segments.push(segment);
 
                 start_pos = None;
@@ -132,7 +133,8 @@ impl Whisper {
             }
 
             audio.consume(end);
-            (first, second) = audio.fill_chunk().await?;
+
+            //(first, second) = audio.fill_chunk().await?;
             prompt = Some(tokens[..end_pos].to_vec());
         }
 
@@ -161,7 +163,7 @@ impl Whisper {
         Ok(token_id)
     }
 
-    pub async fn transcribe_chunk(&self, first: &[f32], second: &[f32], language: u32, prompt: Option<Vec<u32>>) -> Result<Vec<u32>> {
+    pub async fn transcribe_chunk<R: AsyncRead + Unpin>(&self, audio: &mut Audio<R>, language: u32, prompt: Option<Vec<u32>>) -> Result<Vec<u32>> {
         let mut input = vec![];
         
         if let Some(p) = prompt {
@@ -174,9 +176,12 @@ impl Whisper {
         input.push(self.tokenizer.transcribe());
         //prompt.push(self.tokenizer.no_timestamp());
 
+        let (first, second) = audio.chunk();
         let mut inner = self.inner.lock().await;
         let request_id = inner.enqueue_transcribe_request(first, second, input.as_slice())?;
         drop(inner);
+
+        audio.fill().await?;
 
         loop {
             let inner = self.inner.lock().await;
