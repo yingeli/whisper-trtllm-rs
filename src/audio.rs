@@ -16,7 +16,7 @@ impl<R: AsyncRead + Unpin> Audio<R> {
     pub fn new(reader: R) -> Self {
         Self {
             reader,
-            buffer: VecDeque::with_capacity(Self::CHUNK_SIZE * 2),
+            buffer: VecDeque::with_capacity(Self::CHUNK_SIZE * 20),
             offset: 0,
             is_end: false,
         }
@@ -48,10 +48,6 @@ impl<R: AsyncRead + Unpin> Audio<R> {
         self.buffer.len().min(Self::CHUNK_SIZE)  / Self::SAMPLES_PER_MILLIS
     }
 
-    pub fn chunk_start(&self) -> usize {
-        self.offset
-    }
-
     pub fn chunk_end(&self) -> usize {
         self.offset + self.chunk_duration()
     }
@@ -74,7 +70,7 @@ impl<R: AsyncRead + Unpin> Audio<R> {
     }
 
     pub async fn fill(&mut self) -> Result<()> {
-        while self.buffer.len() < Self::CHUNK_SIZE * 2 && !self.is_end {
+        while self.buffer.len() < Self::CHUNK_SIZE * 20 && !self.is_end {
             match self.reader.read_i16_le().await {
                 Ok(sample) => self.buffer.push_back(sample as f32 / i16::MAX as f32),
                 Err(e) => {
