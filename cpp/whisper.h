@@ -9,7 +9,7 @@
 namespace tle = tensorrt_llm::executor;
 
 const int MAX_CHUNK_SIZE = 30 * 16000;
-const int MAX_NEW_TOKENS = 96;
+const int MAX_NEW_TOKENS = 224;
 
 using tle::BatchingType;
 using tle::VecTokens;

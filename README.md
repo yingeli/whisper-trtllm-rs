@@ -20,3 +20,6 @@ export AZURE_STORAGE_CONNECTION_STRING=$(az storage account show-connection-stri
 az storage blob upload-batch \
   --source /path/to/your/directory \
   --destination mycontainer
+
+
+export TLLM_LOG_LEVEL=ERROR

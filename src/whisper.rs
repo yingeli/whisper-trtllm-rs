@@ -58,15 +58,12 @@ impl Whisper {
         let mut audio = Audio::new(reader);
         
         //let start = std::time::Instant::now();
-        audio.fill_chunk().await?;
+        let (first, second) = audio.fill_chunk().await?;
         //println!("fill_chunk: {:?}", start.elapsed());
         
         let lang = match language {
             Some(lang) => self.tokenizer.language_token_id(&lang)?,
-            None => {
-                let (first, second) = audio.chunk();
-                self.detect_chunk_language(first, second).await?
-            },
+            None => self.detect_chunk_language(first, second).await?,
         };
 
         let mut segments = Vec::new();
@@ -76,14 +73,16 @@ impl Whisper {
         }
 
         loop {
+            //println!("first: {:?}, second {:?}", first.len(), second.len());
+
+            let tokens = self.transcribe_chunk(&mut audio, lang, prompt).await?;
+            //println!("Tokens: {:?}", tokens);
+            //println!("Chunk: {:?}", self.tokenizer.decode(&tokens, true)?);
+
             let mut start = 0;
             let mut end = 0;
             let mut start_pos = None;
             let mut end_pos = 0;
-            //println!("first: {:?}, second {:?}", first.len(), second.len());
-
-            let tokens = self.transcribe_chunk(&mut audio, lang, prompt).await?;
-            //println!("{:?}", self.tokenizer.decode(&tokens, false)?);
 
             for (i, token) in tokens.iter().enumerate() {
                 if let Some(millis) = self.tokenizer.timestamp_to_millis(*token) {
@@ -111,7 +110,7 @@ impl Whisper {
 
             if end_pos == 0 {
                 end = audio.chunk_duration();
-                end_pos = tokens.len();
+                end_pos = tokens.len() - 1;
 
                 // New segment
                 let text = self.tokenizer.decode(&tokens[1..], false)?;
@@ -126,16 +125,19 @@ impl Whisper {
                     // New segment
                     let text = self.tokenizer.decode(&tokens[pos..], false)?;
                     let segment = Segment::new(audio.offset() + start, audio.duration(), text);
-                    println!("segment: {:?}", segment);
                     segments.push(segment);
                 }
                 break;
             }
 
             audio.consume(end);
+            //println!("Consumed: {:?}", audio.offset());
 
             //(first, second) = audio.fill_chunk().await?;
-            prompt = Some(tokens[..end_pos].to_vec());
+
+            let s = if end_pos < 210 { 0 } else { end_pos - 210 };
+            //println!("Prompt: {:?}", self.tokenizer.decode(&tokens[s..end_pos + 1], true)?);
+            prompt = Some(tokens[s..end_pos].to_vec());
         }
 
         let transcript = Transcript::new(self.tokenizer.language(lang)?, segments);
@@ -163,7 +165,7 @@ impl Whisper {
         Ok(token_id)
     }
 
-    pub async fn transcribe_chunk<R: AsyncRead + Unpin>(&self, audio: &mut Audio<R>, language: u32, prompt: Option<Vec<u32>>) -> Result<Vec<u32>> {
+    async fn transcribe_chunk<R: AsyncRead + Unpin>(&self, audio: &mut Audio<R>, language: u32, prompt: Option<Vec<u32>>) -> Result<Vec<u32>> {
         let mut input = vec![];
         
         if let Some(p) = prompt {
@@ -176,7 +178,7 @@ impl Whisper {
         input.push(self.tokenizer.transcribe());
         //prompt.push(self.tokenizer.no_timestamp());
 
-        let (first, second) = audio.chunk();
+        let (first, second) = audio.fill_chunk().await?;
         let mut inner = self.inner.lock().await;
         let request_id = inner.enqueue_transcribe_request(first, second, input.as_slice())?;
         drop(inner);

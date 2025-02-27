@@ -52,7 +52,7 @@ impl<R: AsyncRead + Unpin> Audio<R> {
         self.offset + self.chunk_duration()
     }
 
-    pub async fn fill_chunk(&mut self) -> Result<()> {
+    pub async fn fill_chunk(&mut self) -> Result<(&[f32], &[f32])> {
         while self.buffer.len() < Self::CHUNK_SIZE && !self.is_end {
             match self.reader.read_i16_le().await {
                 Ok(sample) => self.buffer.push_back(sample as f32 / i16::MAX as f32),
@@ -65,8 +65,7 @@ impl<R: AsyncRead + Unpin> Audio<R> {
                 }
             }
         }
-        // k(self.buffer.as_slices())
-        Ok(())
+        Ok(self.chunk())
     }
 
     pub async fn fill(&mut self) -> Result<()> {

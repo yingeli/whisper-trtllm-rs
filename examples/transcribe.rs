@@ -12,12 +12,19 @@ async fn main() -> Result<()> {
     //let audio = read_audio("/home/coder/whisper-trtllm-rs/models/assets/meeting-30s.wav", 16000)?;
     let mut audio = File::open("/home/coder/whisper-trtllm-rs/models/assets/oppo-en-us.wav").await?;
     audio.seek(SeekFrom::Start(44)).await?;
-
     let reader = BufReader::new(audio);
 
-    let lang_id = whisper.detect_language(reader).await?;
-    println!("Language: {:?}", lang_id);
+    let transcript = whisper.transcribe(reader, None, None).await?;
 
+    let mut audio = File::open("/home/coder/whisper-trtllm-rs/models/assets/oppo-en-us.wav").await?;
+    audio.seek(SeekFrom::Start(44)).await?;
+    let reader = BufReader::new(audio);
+
+    let start = std::time::Instant::now();
+    let transcript = whisper.transcribe(reader, None, Some("Hi,".to_string())).await?;
+    println!("Transcript: {:?}", transcript);
+    println!("Time elapsed: {:?}", start.elapsed());
+    /*
     let mut audio = File::open("/home/coder/whisper-trtllm-rs/models/assets/oppo-en-us.wav").await?;
     audio.seek(SeekFrom::Start(44)).await?;
 
@@ -28,7 +35,6 @@ async fn main() -> Result<()> {
     println!("Language: {:?}", lang_id);
     println!("Time elapsed: {:?}", start.elapsed());
 
-    /*
     let result = whisper.transcribe(reader, Some("en"), "<|0.00|> hi, everyone.<|1.20|>").await?;
 
     let mut audio = File::open("/home/coder/whisper-trtllm-rs/models/assets/oppo-en-us.wav").await?;
@@ -39,15 +45,14 @@ async fn main() -> Result<()> {
     let result = whisper.transcribe(reader, Some("en"), "<|0.00|> hi, guys.<|1.20|>").await?;
     println!("Transcription: {:?}", result);
     println!("time: {:?}", start.elapsed());
-    */
 
-    /*
     let start = std::time::Instant::now();
     let result = whisper.detect_language(&audio)?;
     println!("time: {:?}", start.elapsed());
     println!("Result: {:?}", result);
     */   
 
+    /*
     let n = 4; // Number of threads
     let mut handles = Vec::new();
     let start = std::time::Instant::now();
@@ -59,12 +64,14 @@ async fn main() -> Result<()> {
                 let mut audio = File::open("/home/coder/whisper-trtllm-rs/models/assets/oppo-en-us.wav").await.unwrap();
                 audio.seek(SeekFrom::Start(44)).await.unwrap();
                 let reader = BufReader::new(audio);
-                let starti = std::time::Instant::now();
-                let result = whisper_clone.detect_language(reader).await.unwrap();
-                println!("Thread {} time: {:?}", i, starti.elapsed());
+                let start_time = std::time::Instant::now();
+                let transcript = whisper_clone.transcribe(reader, None, Some("Hi,".to_string())).await.unwrap();
+                // println!("Transcript: {:?}", transcript);
+                println!("Time elapsed: {:?}", start_time.elapsed());
                 //break;
             }
         }));
+
     }
 
     for handle in handles {
@@ -72,7 +79,7 @@ async fn main() -> Result<()> {
     }
     println!("Time: {:?}", start.elapsed());
     println!("RPS: {:?}", n as f32 * 10.0 / start.elapsed().as_millis() as f32 * 1000 as f32);
-
+    */
     Ok(())
 }
 

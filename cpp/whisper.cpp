@@ -229,15 +229,14 @@ namespace tensorrt_llm::whisper {
 
         //bool timestampSuppressed = false;
 
+        // suppress blank at the beginning
+        if (tokens[0].size() == sampleBegin) {
+            logits.suppressBlank();
+        }
+
         for (auto b = 0; b < tokens.size(); b++) {
             auto beamLogits = logits.beam(b);
             auto beamTokens = tokens[b];
-
-            // suppress blank at the beginning
-            if (beamTokens.size() == sampleBegin) {
-                beamLogits.suppressBlank();
-                beamLogits.suppressNonTimestamp();
-            }
 
             auto nTokens = beamTokens.size();
             bool lastWasTimestamp = nTokens > sampleBegin &&
@@ -248,14 +247,14 @@ namespace tensorrt_llm::whisper {
             if (lastWasTimestamp) {
                 if (penultimateWasTimestamp) {
                     beamLogits.suppressTimestamps();
-                    beamLogits.suppressEndOfText();
+                    //beamLogits.suppressEndOfText();
                     //timestampSuppressed = true;
                 } else {
                     beamLogits.suppressText();
                 }
             }          
 
-            auto lastTimestampPos = 0;
+            //auto lastTimestampPos = 0;
             for (auto i = nTokens - 1; i >= sampleBegin; i--) {
                 auto token = beamTokens[i];
                 if (token::isTimestamp(token)) {
@@ -266,39 +265,47 @@ namespace tensorrt_llm::whisper {
                         timestampLast = token + 1;
                     }
                     beamLogits.suppressTimestamps(timestampLast);
-                    lastTimestampPos = i;
+                    //lastTimestampPos = i;
                     break;
                 }
             }
+        }
 
-            // suppress generating non-timestamp tokens at the beginning
-            //if (beamTokens.size() == sampleBegin) {
-            //    beamLogits.suppressNonTimestamp();
-            //}
+        // suppress generating non-timestamp tokens at the beginning
+        if (tokens[0].size() == sampleBegin) {
+            logits.suppressNonTimestamp();
+        }
 
-            auto logprobs = logits.logprobs();
-            for (auto b = 0; b < tokens.size(); b++) {
-                auto beamLogprobs = logprobs.beam(b);
-                auto timestampLogprob = beamLogprobs.timestamps().logsumexp();
+        auto logprobs = logits.logprobs();
+        for (auto b = 0; b < tokens.size(); b++) {
+            auto beamLogprobs = logprobs.beam(b);
+            auto timestampsLogprob = beamLogprobs.timestamps().logsumexp();
 
-                /*
-                bool sampleTimestamp = false;
-                mMutex.lock();
-                if (timestampLogprob > mTranscribeContextMap[reqId].prevTimestampLogprob + 5) {
-                    sampleTimestamp = true;
-                }
-                if (!timestampSuppressed) {
-                    mTranscribeContextMap[reqId].prevTimestampLogprob = timestampLogprob;
-                }
-                mMutex.unlock();
+            /*
+            bool sampleTimestamp = false;
+            mMutex.lock();
+            if (timestampLogprob > mTranscribeContextMap[reqId].prevTimestampLogprob + 5) {
+                sampleTimestamp = true;
+            }
+            if (!timestampSuppressed) {
+                mTranscribeContextMap[reqId].prevTimestampLogprob = timestampLogprob;
+            }
+            mMutex.unlock();
                 
-                if (sampleTimestamp) {
-                    logits.beam(b).suppressNonTimestamp();
-                }
-                */
+            if (sampleTimestamp) {
+                logits.beam(b).suppressNonTimestamp();
+            }
+            */
 
-                auto maxTextLogprob = beamLogprobs.nonTimestamps().max();
+            auto maxTextLogprob = beamLogprobs.nonTimestamps().max();
 
+            if (timestampsLogprob > maxTextLogprob) {
+                logits.beam(b).suppressNonTimestamp();
+                //logits.beam(b).suppressText();
+                //std::cout << tokens[b] << std::endl;
+            }
+
+            /*
                 if (tokens[b].size() < 30 && !token::isClauseEnd(tokens[b])) {
                     logits.beam(b).suppressTimestamps();
                     // std::cout << " text";
@@ -315,12 +322,11 @@ namespace tensorrt_llm::whisper {
                 //if (timestampLogprob > maxTextLogprob) {
                 //    logits.beam(b).suppressNonTimestamp();
                 //}
-            }  
+            */
         }
 
         // TODO: suppress max_initial_timestamp_index
 
-        // if sum of probability over timestamps is above any other token, sample timestamp
     }
 }
 

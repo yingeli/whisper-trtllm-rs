@@ -115,12 +115,12 @@ namespace tensorrt_llm::whisper {
                 return BeamTensor(mTensor.slice(0, start, end));
             }
 
-            torch::Half max() {
-                return std::get<0>(mTensor.max(0)).item<torch::Half>();
+            float max() {
+                return std::get<0>(mTensor.max(0)).item<float>();
             }
 
-            torch::Half logsumexp() {
-                return mTensor.logsumexp(0).item<torch::Half>();
+            float logsumexp() {
+                return mTensor.logsumexp(0).item<float>();
                 //return torch::logsumexp(mTensor, 0).item<torch::Half>();
             }
 
@@ -214,13 +214,18 @@ namespace tensorrt_llm::whisper {
                 putRange(0, token::BEGIN_OF_TIMESTAMP, NEG_INF);
             }
 
+            void suppressBlank() {
+                torch::Tensor indices = torch::tensor({token::SPACE, token::END_OF_TEXT}, torch::kLong);
+                putIndices(indices, NEG_INF);
+            }
+
             BeamLogits beam(int64_t beam) {
                 auto tensor = mTensor.index({0, beam});
                 return BeamLogits(tensor);
             }
 
             Logprobs logprobs() {
-                auto tensor = torch::nn::functional::log_softmax(mTensor, 2);
+                auto tensor = torch::nn::functional::log_softmax(mTensor.to(torch::kFloat32), 2);
                 return Logprobs(tensor);
             }
     };
