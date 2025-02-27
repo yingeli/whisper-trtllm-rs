@@ -24,4 +24,10 @@ namespace tensorrt_llm::whisper::token {
     bool isTimestamp(TokenIdType token) {
         return token >= BEGIN_OF_TIMESTAMP && token < END_OF_TIMESTAMP;
     }
+
+    bool isClauseEnd(const std::vector<TokenIdType>& tokens) {
+        const size_t n = tokens.size();
+        return n > 0 && (tokens[n - 1] == 11 || tokens[n - 1] == 13 || tokens[n - 1] == 0 || tokens[n - 1] == 30 || tokens[n - 1] == 1543) || // ,.!?。
+            n > 2 && tokens[n - 3] == 171 && tokens[n - 2] == 120 && (tokens[n - 1] == 234 || tokens[n - 1] == 223 || tokens[n - 1] == 253); // ，！？
+    }
 }

@@ -299,10 +299,10 @@ namespace tensorrt_llm::whisper {
 
                 auto maxTextLogprob = beamLogprobs.nonTimestamps().max();
 
-                if (tokens[b].back() > 30 && tokens[b].back() < 50257) {
+                if (tokens[b].size() < 30 && !token::isClauseEnd(tokens[b])) {
                     logits.beam(b).suppressTimestamps();
                     // std::cout << " text";
-                } else if (timestampLogprob + 0.2 > maxTextLogprob) {
+                } else if (timestampLogprob > maxTextLogprob) {
                     //logits.beam(b).suppressNonTimestamp();
                     logits.beam(b).suppressText();
                     //std::cout << "timestampLogprob: " << timestampLogprob 
