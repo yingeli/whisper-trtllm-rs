@@ -93,9 +93,11 @@ impl Whisper {
                                 end_pos = i;
                                 
                                 // New segment
-                                let text = self.tokenizer.decode(&tokens[pos..end_pos], false)?;
-                                let segment = Segment::new(audio.offset() + start, audio.offset() + end, text);
-                                segments.push(segment);
+                                if end_pos - pos > 0 {
+                                    let text = self.tokenizer.decode(&tokens[pos..end_pos], false)?;
+                                    let segment = Segment::new(audio.offset() + start, audio.offset() + end, text);
+                                    segments.push(segment);
+                                }
 
                                 start_pos = None;
                             }
@@ -112,20 +114,24 @@ impl Whisper {
                 end = audio.chunk_duration();
                 end_pos = tokens.len() - 1;
 
-                // New segment
-                let text = self.tokenizer.decode(&tokens[1..], false)?;
-                let segment = Segment::new(audio.offset() + start, audio.chunk_end(), text);
-                segments.push(segment);
-
+                if tokens.len() > 1 {
+                    // New segment
+                    let text = self.tokenizer.decode(&tokens[1..], false)?;
+                    let segment = Segment::new(audio.offset() + start, audio.chunk_end(), text);
+                    segments.push(segment);
+                }
                 start_pos = None;
             }
 
             if audio.is_end() {
-                if let Some(pos) = start_pos {                  
-                    // New segment
-                    let text = self.tokenizer.decode(&tokens[pos..], false)?;
-                    let segment = Segment::new(audio.offset() + start, audio.duration(), text);
-                    segments.push(segment);
+                if let Some(pos) = start_pos {
+                    if pos < tokens.len() {
+                        end = audio.chunk_end();
+                        // New segment
+                        let text = self.tokenizer.decode(&tokens[pos..], false)?;
+                        let segment = Segment::new(audio.offset() + start, audio.duration(), text);
+                        segments.push(segment);
+                    }
                 }
                 break;
             }
@@ -137,7 +143,7 @@ impl Whisper {
 
             let s = if end_pos < 210 { 0 } else { end_pos - 210 };
             //println!("Prompt: {:?}", self.tokenizer.decode(&tokens[s..end_pos + 1], true)?);
-            prompt = Some(tokens[s..end_pos].to_vec());
+            prompt = Some(tokens[s..end_pos + 1].to_vec());
         }
 
         let transcript = Transcript::new(self.tokenizer.language(lang)?, segments);

@@ -16,12 +16,12 @@ async fn main() -> Result<()> {
 
     let transcript = whisper.transcribe(reader, None, None).await?;
 
-    let mut audio = File::open("/home/coder/whisper-trtllm-rs/models/assets/oppo-en-us.wav").await?;
+    let mut audio = File::open("/home/coder/whisper-trtllm-rs/models/assets/oppo-zh-cn.wav").await?;
     audio.seek(SeekFrom::Start(44)).await?;
     let reader = BufReader::new(audio);
 
     let start = std::time::Instant::now();
-    let transcript = whisper.transcribe(reader, None, Some("Hi,".to_string())).await?;
+    let transcript = whisper.transcribe(reader, None, Some("<|0.00|>Hi, guys.<|0.98|>".to_string())).await?;
     println!("Transcript: {:?}", transcript);
     println!("Time elapsed: {:?}", start.elapsed());
     /*
