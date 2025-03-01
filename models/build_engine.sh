@@ -6,14 +6,18 @@ INFERENCE_PRECISION=float16
 WEIGHT_ONLY_PRECISION=int8
 MAX_BEAM_WIDTH=5
 MAX_BATCH_SIZE=8
-checkpoint_dir=whisper_turbo_weights_${WEIGHT_ONLY_PRECISION}
-output_dir=whisper_turbo_${WEIGHT_ONLY_PRECISION}
+checkpoint_dir=whisper_large_v3_weights_${WEIGHT_ONLY_PRECISION}
+output_dir=whisper_large_v3_${WEIGHT_ONLY_PRECISION}
 
 # Convert the large-v3 turbo model weights into TensorRT-LLM format.
 python3 convert_checkpoint.py \
                 --model_name large-v3-turbo \
                 --use_weight_only \
                 --weight_only_precision $WEIGHT_ONLY_PRECISION \
+                --output_dir $checkpoint_dir
+
+python3 convert_checkpoint.py \
+                --model_name large-v3-turbo \
                 --output_dir $checkpoint_dir
 
 # Build the large-v3 model using trtllm-build
@@ -24,6 +28,7 @@ trtllm-build  --checkpoint_dir ${checkpoint_dir}/encoder \
               --gemm_plugin disable \
               --bert_attention_plugin ${INFERENCE_PRECISION} \
               --max_input_len 3000 --max_seq_len=3000 \
+              --use_paged_context_fmha enable 
               --context_fmha disable \
               --kv_cache_type continuous \
               --remove_input_padding disable
@@ -39,6 +44,7 @@ trtllm-build  --checkpoint_dir ${checkpoint_dir}/decoder \
               --gemm_plugin ${INFERENCE_PRECISION} \
               --bert_attention_plugin ${INFERENCE_PRECISION} \
               --gpt_attention_plugin ${INFERENCE_PRECISION} \
+              --use_paged_context_fmha enable 
               --context_fmha disable
 
 python3 run.py --name single_wav_test --engine_dir $output_dir --input_file assets/1221-135766-0002.wav --enable_warmup --use_py_session

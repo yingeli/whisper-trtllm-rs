@@ -61,11 +61,17 @@ namespace tensorrt_llm::whisper {
         };
         logitsProcConfig.setProcessorMap(logitsProcMap);
 
-        tle::ExecutorConfig executorConfig = tle::ExecutorConfig(1);
+        auto decodingMode = tle::DecodingMode::Auto();
+        decodingMode.useTemperature(true);
+        auto decodingConfig = tle::DecodingConfig(decodingMode);
+        //decodingConfig.setDecodingMode(decodingMode);
+
+        tle::ExecutorConfig executorConfig = tle::ExecutorConfig(5);
         executorConfig.setBatchingType(config.batchingType);
         executorConfig.setKvCacheConfig(kvCacheConfig);
-        executorConfig.setEnableChunkedContext(false);
         executorConfig.setLogitsPostProcessorConfig(logitsProcConfig);
+        executorConfig.setDecodingConfig(decodingConfig);
+        //executorConfig.setEnableChunkedContext(false);
         
         return executorConfig;
     }
@@ -127,7 +133,8 @@ namespace tensorrt_llm::whisper {
     IdType Whisper::enqueueTranscribeRequest(
         const std::span<const float> first,
         const std::optional<std::span<const float>> second,
-        const tle::VecTokens prompt
+        const tle::VecTokens prompt,
+        const TranscribeOptions &options
     ) {
         /*
         auto sampleSize = first.size() + second.has_value() ? second.size() : 0;
@@ -170,6 +177,20 @@ namespace tensorrt_llm::whisper {
         request.setPadId(token::END_OF_TEXT);
         request.setLogitsPostProcessorName("transcribe");
 
+        auto samplingConfig = tle::SamplingConfig(options.beamWidth, options.topK);
+        if (options.topP > 0) {
+            samplingConfig.setTopP(options.topP);
+        }
+        samplingConfig.setTemperature(options.temperature);
+        //samplingConfig.setEarlyStopping(std::nullopt);
+        samplingConfig.setEarlyStopping(0);
+        //samplingConfig.setBeamSearchDiversityRate(2.5);
+        request.setSamplingConfig(samplingConfig);
+
+        tle::OutputConfig outputConfig;
+        outputConfig.returnLogProbs = true;
+        request.setOutputConfig(outputConfig);
+
         auto requestId = mExecutor.enqueueRequest(request);
         mTranscribeLogitsProcessor.addRequest(requestId, prompt.size());
 
@@ -181,11 +202,38 @@ namespace tensorrt_llm::whisper {
     ) {
         auto response = mExecutor.awaitResponses(requestId)[0];
         auto result = response.getResult();
-
+    
         mTranscribeLogitsProcessor.removeRequest(requestId);
+    
+        // Find the beam with highest average log probability
+        size_t bestBeamIdx = 0;
+        float maxAvgLogProb = -std::numeric_limits<float>::infinity();
+        
+        const auto& cumLogProbs = result.cumLogProbs.value();
+        
+        // Calculate average log probabilities for each beam
+        for (size_t i = 0; i < result.outputTokenIds.size(); i++) {
+            const auto& logProbs = result.logProbs.value()[i];
+            auto nNewTokens = logProbs.size();
+            //float sumLogProbs = std::accumulate(logProbs.begin(), logProbs.end(), 0.0f);
+            float avgLogProb = cumLogProbs[i] / static_cast<float>(nNewTokens + 1);
 
+            if (avgLogProb > maxAvgLogProb) {
+                maxAvgLogProb = avgLogProb;
+                bestBeamIdx = i;
+            }
+            std::cout << "beam: " << i
+                << " cumLogProb: " << cumLogProbs[i]
+                //<< " sumLogProbs: " << sumLogProbs
+                << " avgLogProb: " << avgLogProb 
+                << " nNewTokens: " << nNewTokens
+                << std::endl;
+            //std::cout << "logProbs: " << result.logProbs.value()[i] << std::endl;
+        }
+        
         return TranscribeResult {
-            result.outputTokenIds[0]
+            result.outputTokenIds[bestBeamIdx],
+            maxAvgLogProb
         };
     }
 
@@ -227,61 +275,69 @@ namespace tensorrt_llm::whisper {
         // suppress notimestamps
         logits.suppressNoTimestamps();
 
-        //bool timestampSuppressed = false;
-
         // suppress blank at the beginning
         if (tokens[0].size() == sampleBegin) {
             logits.suppressBlank();
-        }
+            logits.suppressNonTimestamp();
+            return;
+        } 
+        
+        bool checkTimestampsProb = false;
 
         for (auto b = 0; b < tokens.size(); b++) {
             auto beamLogits = logits.beam(b);
             auto beamTokens = tokens[b];
-
+    
             auto nTokens = beamTokens.size();
             bool lastWasTimestamp = nTokens > sampleBegin &&
                 token::isTimestamp(beamTokens[nTokens - 1]);
             bool penultimateWasTimestamp = nTokens < sampleBegin + 2 ||
                 nTokens > sampleBegin + 1 && token::isTimestamp(beamTokens[nTokens - 2]);
-
+    
             if (lastWasTimestamp) {
                 if (penultimateWasTimestamp) {
                     beamLogits.suppressTimestamps();
                     //beamLogits.suppressEndOfText();
-                    //timestampSuppressed = true;
                 } else {
                     beamLogits.suppressText();
+                    beamLogits.suppressTimestamps(beamTokens[nTokens - 1]);
+                    checkTimestampsProb = true;
                 }
-            }          
-
-            //auto lastTimestampPos = 0;
-            for (auto i = nTokens - 1; i >= sampleBegin; i--) {
-                auto token = beamTokens[i];
-                if (token::isTimestamp(token)) {
-                    tle::TokenIdType timestampLast;
-                    if (lastWasTimestamp && !penultimateWasTimestamp) {
-                        timestampLast = token;
-                    } else {
-                        timestampLast = token + 1;
+            } else {
+                for (auto i = nTokens - 1; i >= sampleBegin; i--) {
+                    auto token = beamTokens[i];
+                    if (token::isTimestamp(token)) {
+                        beamLogits.suppressTimestamps(token + 1);
+                        break;
                     }
-                    beamLogits.suppressTimestamps(timestampLast);
-                    //lastTimestampPos = i;
-                    break;
                 }
+                checkTimestampsProb = true;
             }
         }
 
-        // suppress generating non-timestamp tokens at the beginning
-        if (tokens[0].size() == sampleBegin) {
-            logits.suppressNonTimestamp();
-        }
+        if (checkTimestampsProb) {
+            auto logprobs = logits.logprobs();
+            for (auto b = 0; b < tokens.size(); b++) {
+                auto beamLogprobs = logprobs.beam(b);
+                auto timestampsLogprob = beamLogprobs.timestamps().logsumexp();
 
-        auto logprobs = logits.logprobs();
-        for (auto b = 0; b < tokens.size(); b++) {
-            auto beamLogprobs = logprobs.beam(b);
-            auto timestampsLogprob = beamLogprobs.timestamps().logsumexp();
+                auto maxTextLogprob = beamLogprobs.nonTimestamps().max();
+
+                if (timestampsLogprob > maxTextLogprob) {
+                    logits.beam(b).suppressNonTimestamp();
+                        //std::cout << tokens[b] << std::endl;
+                }
+            }
+        }
+    }
+}
+
 
             /*
+
+
+
+
             bool sampleTimestamp = false;
             mMutex.lock();
             if (timestampLogprob > mTranscribeContextMap[reqId].prevTimestampLogprob + 5) {
@@ -296,14 +352,6 @@ namespace tensorrt_llm::whisper {
                 logits.beam(b).suppressNonTimestamp();
             }
             */
-
-            auto maxTextLogprob = beamLogprobs.nonTimestamps().max();
-
-            if (timestampsLogprob > maxTextLogprob) {
-                logits.beam(b).suppressNonTimestamp();
-                //logits.beam(b).suppressText();
-                //std::cout << tokens[b] << std::endl;
-            }
 
             /*
                 if (tokens[b].size() < 30 && !token::isClauseEnd(tokens[b])) {
@@ -323,12 +371,9 @@ namespace tensorrt_llm::whisper {
                 //    logits.beam(b).suppressNonTimestamp();
                 //}
             */
-        }
-
         // TODO: suppress max_initial_timestamp_index
 
-    }
-}
+
 
 /*
 

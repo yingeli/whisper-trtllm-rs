@@ -1,6 +1,6 @@
 use std::path::Path;
 use anyhow::{anyhow, Result};
-use super::sys;
+use super::sys::{self, TranscribeOptions};
 use super::tokenizer::Tokenizer;
 use tokio::sync::Mutex;
 use super::audio::Audio;
@@ -51,7 +51,12 @@ impl Whisper {
         Ok(lang)
     }
 
-    pub async fn transcribe<R: AsyncRead + Unpin>(&self, reader: R, language: Option<String>, initial_prompt: Option<String>) -> Result<Transcript>
+    pub async fn transcribe<R: AsyncRead + Unpin>(&self, 
+        reader: R, 
+        language: Option<String>, 
+        initial_prompt: Option<String>,
+        options: &TranscribeOptions,
+    ) -> Result<Transcript>
     where
         R: AsyncRead + Unpin,
     {
@@ -75,9 +80,9 @@ impl Whisper {
         loop {
             //println!("first: {:?}, second {:?}", first.len(), second.len());
 
-            let tokens = self.transcribe_chunk(&mut audio, lang, prompt).await?;
+            let tokens = self.transcribe_chunk(&mut audio, lang, prompt, options).await?;
             //println!("Tokens: {:?}", tokens);
-            //println!("Chunk: {:?}", self.tokenizer.decode(&tokens, true)?);
+            //println!("Chunk: {:?}", self.tokenizer.decode(&tokens, false)?);
 
             let mut start = 0;
             let mut end = 0;
@@ -171,7 +176,12 @@ impl Whisper {
         Ok(token_id)
     }
 
-    async fn transcribe_chunk<R: AsyncRead + Unpin>(&self, audio: &mut Audio<R>, language: u32, prompt: Option<Vec<u32>>) -> Result<Vec<u32>> {
+    async fn transcribe_chunk<R: AsyncRead + Unpin>(&self, 
+        audio: &mut Audio<R>, 
+        language: u32, 
+        prompt: Option<Vec<u32>>,
+        options: &TranscribeOptions,
+    ) -> Result<Vec<u32>> {
         let mut input = vec![];
         
         if let Some(p) = prompt {
@@ -186,7 +196,7 @@ impl Whisper {
 
         let (first, second) = audio.fill_chunk().await?;
         let mut inner = self.inner.lock().await;
-        let request_id = inner.enqueue_transcribe_request(first, second, input.as_slice())?;
+        let request_id = inner.enqueue_transcribe_request(first, second, input.as_slice(), options)?;
         drop(inner);
 
         audio.fill().await?;
@@ -206,6 +216,7 @@ impl Whisper {
 
         //let output = self.tokenizer.decode(result.tokens.as_slice(), false)?;
 
+        //println!("Output: {:?}", self.tokenizer.decode(&result.tokens, false)?);
         let output = result.tokens[input.len()..].to_vec();
         Ok(output)
     }

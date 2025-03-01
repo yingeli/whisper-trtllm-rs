@@ -18,6 +18,7 @@ using tle::VecTokens;
 using tle::IdType;
 using tle::TokenIdType;
 using tlw::Config;
+using tlw::TranscribeOptions;
 
 struct TranscribeResult;
 
@@ -40,7 +41,8 @@ class Whisper {
         IdType enqueue_transcribe_request(
             const rust::Slice<const float> first,
             const rust::Slice<const float> second,
-            const rust::Slice<const std::uint32_t> prompt
+            const rust::Slice<const std::uint32_t> prompt,
+            const TranscribeOptions &options
         );
 
         TranscribeResult await_transcribe_response(

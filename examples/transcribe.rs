@@ -1,6 +1,6 @@
 use std::path::Path;
 use anyhow::Result;
-use whisper_trtllm_rs::Whisper;
+use whisper_trtllm_rs::{Whisper, TranscribeOptions};
 use hound::WavReader;
 use std::sync::Arc;
 use tokio::fs::File;
@@ -10,76 +10,52 @@ use tokio::io::{self, AsyncReadExt, AsyncSeekExt, SeekFrom, BufReader};
 async fn main() -> Result<()> {
     let whisper = Arc::new(Whisper::load("/home/coder/whisper-trtllm-rs/models/whisper_turbo_int8")?);
     //let audio = read_audio("/home/coder/whisper-trtllm-rs/models/assets/meeting-30s.wav", 16000)?;
-    let mut audio = File::open("/home/coder/whisper-trtllm-rs/models/assets/oppo-en-us.wav").await?;
-    audio.seek(SeekFrom::Start(44)).await?;
-    let reader = BufReader::new(audio);
-
-    let transcript = whisper.transcribe(reader, None, None).await?;
-
     let mut audio = File::open("/home/coder/whisper-trtllm-rs/models/assets/oppo-zh-cn.wav").await?;
     audio.seek(SeekFrom::Start(44)).await?;
     let reader = BufReader::new(audio);
 
+    let mut options = TranscribeOptions::default();
+    options.beam_width = 4;
+    //options.top_k = 0;
+    //options.top_p = 1.0;
+    //options.temperature = 1.0;
+
     let start = std::time::Instant::now();
-    let transcript = whisper.transcribe(reader, None, Some("<|0.00|>Hi, guys.<|0.98|>".to_string())).await?;
+    let transcript = whisper.transcribe(reader, None, None, &options).await?;
     println!("Transcript: {:?}", transcript);
     println!("Time elapsed: {:?}", start.elapsed());
-    /*
-    let mut audio = File::open("/home/coder/whisper-trtllm-rs/models/assets/oppo-en-us.wav").await?;
-    audio.seek(SeekFrom::Start(44)).await?;
-
-    let reader = BufReader::new(audio);
-
-    let start = std::time::Instant::now();
-    let lang_id = whisper.detect_language(reader).await?;
-    println!("Language: {:?}", lang_id);
-    println!("Time elapsed: {:?}", start.elapsed());
-
-    let result = whisper.transcribe(reader, Some("en"), "<|0.00|> hi, everyone.<|1.20|>").await?;
-
-    let mut audio = File::open("/home/coder/whisper-trtllm-rs/models/assets/oppo-en-us.wav").await?;
-    audio.seek(SeekFrom::Start(44)).await?;
-    let reader = BufReader::new(audio);
-
-    let start = std::time::Instant::now();
-    let result = whisper.transcribe(reader, Some("en"), "<|0.00|> hi, guys.<|1.20|>").await?;
-    println!("Transcription: {:?}", result);
-    println!("time: {:?}", start.elapsed());
-
-    let start = std::time::Instant::now();
-    let result = whisper.detect_language(&audio)?;
-    println!("time: {:?}", start.elapsed());
-    println!("Result: {:?}", result);
-    */   
 
     /*
-    let n = 4; // Number of threads
+    let n = 5; // Number of threads
     let mut handles = Vec::new();
     let start = std::time::Instant::now();
     for i in 0..n {
         //let audio_clone = audio.clone();
         let whisper_clone = whisper.clone();
         handles.push(tokio::spawn( async move {
-            for i in 0..10 {
+            for i in 0..20 {
                 let mut audio = File::open("/home/coder/whisper-trtllm-rs/models/assets/oppo-en-us.wav").await.unwrap();
                 audio.seek(SeekFrom::Start(44)).await.unwrap();
                 let reader = BufReader::new(audio);
+                let mut options = TranscribeOptions::default();
+                options.beam_width = 5;
                 let start_time = std::time::Instant::now();
-                let transcript = whisper_clone.transcribe(reader, None, Some("Hi,".to_string())).await.unwrap();
+                //let transcript = whisper_clone.transcribe(reader, None, Some("Hi,".to_string()), &options).await.unwrap();
+                let transcript = whisper_clone.transcribe(reader, None, None, &options).await.unwrap();
                 // println!("Transcript: {:?}", transcript);
                 println!("Time elapsed: {:?}", start_time.elapsed());
                 //break;
             }
         }));
-
     }
 
     for handle in handles {
         handle.await.unwrap();
     }
     println!("Time: {:?}", start.elapsed());
-    println!("RPS: {:?}", n as f32 * 10.0 / start.elapsed().as_millis() as f32 * 1000 as f32);
+    println!("RPS: {:?}", n as f32 * 20.0 / start.elapsed().as_millis() as f32 * 1000 as f32);
     */
+
     Ok(())
 }
 

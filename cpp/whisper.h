@@ -13,16 +13,28 @@ const int MAX_NEW_TOKENS = 224;
 
 using tle::BatchingType;
 using tle::VecTokens;
+using tle::BeamTokens;
+using tle::VecLogProbs;
 using tle::IdType;
 using tle::TokenIdType;
+using tle::SizeType32;
+using tle::FloatType;
 
 namespace tensorrt_llm::whisper {
     struct Config {
         BatchingType batchingType = BatchingType::kINFLIGHT;
     };
 
+    struct TranscribeOptions {
+        SizeType32 beamWidth;
+        SizeType32 topK;
+        FloatType topP;
+        FloatType temperature;
+    };
+
     struct TranscribeResult {
         VecTokens tokens;
+        FloatType avgLogProb;
     };
 
     struct TranscribeContext {
@@ -72,7 +84,8 @@ namespace tensorrt_llm::whisper {
             IdType enqueueTranscribeRequest(
                 const std::span<const float> first,
                 const std::optional<std::span<const float>> second,
-                const tle::VecTokens prompt
+                const tle::VecTokens prompt,
+                const TranscribeOptions &options
             );
 
             TranscribeResult awaitTranscribeResponse(
