@@ -33,6 +33,8 @@ namespace tensorrt_llm::whisper {
     };
 
     struct TranscribeResult {
+        bool isFinal;
+        bool isSequenceFinal;
         VecTokens tokens;
         FloatType avgLogProb;
     };

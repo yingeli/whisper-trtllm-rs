@@ -32,6 +32,8 @@ mod ffi {
     }
 
     struct TranscribeResult {
+        isFinal: bool,
+        isSequenceFinal: bool,
         tokens: Vec<u32>,
         avgLogProb: f32,
     }
@@ -149,6 +151,8 @@ impl TranscribeOptions {
 }
 
 pub(crate) struct TranscribeResult {
+    pub is_final: bool,
+    pub is_sequence_final: bool,
     pub tokens: Vec<u32>,
     pub avg_logprob: f32,
 }
@@ -156,6 +160,8 @@ pub(crate) struct TranscribeResult {
 impl TranscribeResult {
     fn from_ffi(result: ffi::TranscribeResult) -> Self {
         Self {
+            is_final: result.isFinal,
+            is_sequence_final: result.isSequenceFinal,
             tokens: result.tokens,
             avg_logprob: result.avgLogProb,
         }

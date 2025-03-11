@@ -8,14 +8,29 @@ use tokio::io::{self, AsyncReadExt, AsyncSeekExt, SeekFrom, BufReader};
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    let whisper = Arc::new(Whisper::load("/home/coder/whisper-trtllm-rs/models/whisper_turbo_int8")?);
+    let whisper = Arc::new(Whisper::load("/home/coder/whisper-trtllm-rs/models/whisper_turbo")?);
     //let audio = read_audio("/home/coder/whisper-trtllm-rs/models/assets/meeting-30s.wav", 16000)?;
     let mut audio = File::open("/home/coder/whisper-trtllm-rs/models/assets/oppo-zh-cn.wav").await?;
     audio.seek(SeekFrom::Start(44)).await?;
     let reader = BufReader::new(audio);
 
     let mut options = TranscribeOptions::default();
-    options.beam_width = 4;
+    options.beam_width = 1;
+    //options.top_k = 0;
+    //options.top_p = 1.0;
+    //options.temperature = 1.0;
+
+    let start = std::time::Instant::now();
+    let transcript = whisper.transcribe(reader, None, None, &options).await?;
+    //println!("Transcript: {:?}", transcript);
+    //println!("Time elapsed: {:?}", start.elapsed());
+
+    let mut audio = File::open("/home/coder/whisper-trtllm-rs/models/assets/yunxi-en-zh.wav").await?;
+    audio.seek(SeekFrom::Start(44)).await?;
+    let reader = BufReader::new(audio);
+
+    let mut options = TranscribeOptions::default();
+    options.beam_width = 1;
     //options.top_k = 0;
     //options.top_p = 1.0;
     //options.temperature = 1.0;
@@ -26,7 +41,7 @@ async fn main() -> Result<()> {
     println!("Time elapsed: {:?}", start.elapsed());
 
     /*
-    let n = 5; // Number of threads
+    let n = 1; // Number of threads
     let mut handles = Vec::new();
     let start = std::time::Instant::now();
     for i in 0..n {
@@ -38,7 +53,10 @@ async fn main() -> Result<()> {
                 audio.seek(SeekFrom::Start(44)).await.unwrap();
                 let reader = BufReader::new(audio);
                 let mut options = TranscribeOptions::default();
-                options.beam_width = 5;
+                options.beam_width = 1;
+                //options.top_k = 0;
+                //options.top_p = 1.0;
+                //options.temperature = 1.0;
                 let start_time = std::time::Instant::now();
                 //let transcript = whisper_clone.transcribe(reader, None, Some("Hi,".to_string()), &options).await.unwrap();
                 let transcript = whisper_clone.transcribe(reader, None, None, &options).await.unwrap();

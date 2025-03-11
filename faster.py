@@ -10,9 +10,9 @@ model = WhisperModel(model_size, device="cuda", compute_type="float16")
 # or run on CPU with INT8
 # model = WhisperModel(model_size, device="cpu", compute_type="int8")
 
-segments, info = model.transcribe("/home/coder/whisper-trtllm-rs/models/assets/oppo-th-th.wav", beam_size=5, temperature=0.0)
+segments, info = model.transcribe("/home/coder/whisper-trtllm-rs/models/assets/oppo-th-th.wav", beam_size=1, temperature=0.0)
 
 print("Detected language '%s' with probability %f" % (info.language, info.language_probability))
 
 for segment in segments:
-    print("[%.2fs -> %.2fs] %s" % (segment.start, segment.end, segment.text))
+    print("[%.2fs -> %.2fs] %s" % (segment.start, segment.end, segment.tokens))

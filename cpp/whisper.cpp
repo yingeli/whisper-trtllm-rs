@@ -184,7 +184,10 @@ namespace tensorrt_llm::whisper {
         samplingConfig.setTemperature(options.temperature);
         //samplingConfig.setEarlyStopping(std::nullopt);
         samplingConfig.setEarlyStopping(0);
-        //samplingConfig.setBeamSearchDiversityRate(2.5);
+        samplingConfig.setLengthPenalty(1);
+        //samplingConfig.setNoRepeatNgramSize(0);
+        //samplingConfig.setBeamSearchDiversityRate(0.2);
+        samplingConfig.setNumReturnSequences(1);
         request.setSamplingConfig(samplingConfig);
 
         tle::OutputConfig outputConfig;
@@ -203,8 +206,22 @@ namespace tensorrt_llm::whisper {
         auto response = mExecutor.awaitResponses(requestId)[0];
         auto result = response.getResult();
     
-        mTranscribeLogitsProcessor.removeRequest(requestId);
+        if (result.isFinal) {
+            mTranscribeLogitsProcessor.removeRequest(requestId);
+        }
+
+        //std::cout << "result.isFinal: " << result.isFinal << std::endl;
+        //std::cout << "result.isSequenceFinal: " << result.isSequenceFinal << std::endl;
+        //std::cout << "result.outputTokenIds.size(): " << result.outputTokenIds.size() << std::endl;
+
+        return TranscribeResult {
+            result.isFinal,
+            result.isSequenceFinal,
+            result.outputTokenIds[0],
+            result.cumLogProbs.value()[0] / static_cast<float>(result.logProbs.value()[0].size() + 1)
+        };
     
+        /*
         // Find the beam with highest average log probability
         size_t bestBeamIdx = 0;
         float maxAvgLogProb = -std::numeric_limits<float>::infinity();
@@ -222,19 +239,25 @@ namespace tensorrt_llm::whisper {
                 maxAvgLogProb = avgLogProb;
                 bestBeamIdx = i;
             }
+
+            std::vector<int> newTokens(result.outputTokenIds[i].end() - nNewTokens, result.outputTokenIds[i].end());
+
             std::cout << "beam: " << i
                 << " cumLogProb: " << cumLogProbs[i]
                 //<< " sumLogProbs: " << sumLogProbs
                 << " avgLogProb: " << avgLogProb 
                 << " nNewTokens: " << nNewTokens
                 << std::endl;
-            //std::cout << "logProbs: " << result.logProbs.value()[i] << std::endl;
+            std::cout << "tokens: " << newTokens << std::endl;
         }
         
         return TranscribeResult {
+            result.isFinal,
+            result.isSequenceFinal,
             result.outputTokenIds[bestBeamIdx],
             maxAvgLogProb
         };
+        */
     }
 
     bool Whisper::isResponseReady(

@@ -58,6 +58,8 @@ TranscribeResult Whisper::await_transcribe_response(
     }
     
     return TranscribeResult {
+        .isFinal = result.isFinal,
+        .isSequenceFinal = result.isSequenceFinal,
         .tokens = tokens,
         .avgLogProb = result.avgLogProb
     };

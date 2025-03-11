@@ -99,6 +99,7 @@ impl Whisper {
                                 
                                 // New segment
                                 if end_pos - pos > 0 {
+                                    println!("[{:?} -> {:?}] {:?}", audio.offset() + start, audio.offset() + end, &tokens[pos..end_pos]);
                                     let text = self.tokenizer.decode(&tokens[pos..end_pos], false)?;
                                     let segment = Segment::new(audio.offset() + start, audio.offset() + end, text);
                                     segments.push(segment);
@@ -121,6 +122,7 @@ impl Whisper {
 
                 if tokens.len() > 1 {
                     // New segment
+                    println!("[{:?} -> {:?}] {:?}", audio.offset() + start, audio.chunk_end(), &tokens[1..]);
                     let text = self.tokenizer.decode(&tokens[1..], false)?;
                     let segment = Segment::new(audio.offset() + start, audio.chunk_end(), text);
                     segments.push(segment);
@@ -133,6 +135,7 @@ impl Whisper {
                     if pos < tokens.len() {
                         end = audio.chunk_end();
                         // New segment
+                        println!("[{:?} -> {:?}] {:?}", audio.offset() + start, audio.duration(), &tokens[pos..]);
                         let text = self.tokenizer.decode(&tokens[pos..], false)?;
                         let segment = Segment::new(audio.offset() + start, audio.duration(), text);
                         segments.push(segment);
@@ -190,7 +193,9 @@ impl Whisper {
         }
 
         input.push(self.tokenizer.start_of_transcript());
-        input.push(language);
+        //input.push(language);
+        //input.push(50259);
+        input.push(50260);        
         input.push(self.tokenizer.transcribe());
         //prompt.push(self.tokenizer.no_timestamp());
 
@@ -200,24 +205,40 @@ impl Whisper {
         drop(inner);
 
         audio.fill().await?;
+       
+        let mut output = vec![];
+        let mut max_avg_logprob = f32::MIN;
 
         loop {
-            let inner = self.inner.lock().await;
-            if inner.is_response_ready(&request_id)? {
-                break;
+            loop {
+                let inner = self.inner.lock().await;
+                if inner.is_response_ready(&request_id)? {
+                    break;
+                }
+                drop(inner);
+                //std::thread::sleep(std::time::Duration::from_millis(10));
+                sleep(Duration::from_millis(5)).await;
             }
-            drop(inner);
-            //std::thread::sleep(std::time::Duration::from_millis(10));
-            sleep(Duration::from_millis(5)).await;
-        }
 
-        let mut inner = self.inner.lock().await;
-        let result = inner.await_transcribe_response(&request_id)?;
+            let mut inner = self.inner.lock().await;
+            let result = inner.await_transcribe_response(&request_id)?;
+            drop(inner);
+
+            if result.is_sequence_final {
+                if result.avg_logprob > max_avg_logprob {
+                    output = result.tokens[input.len()..].to_vec();
+                    max_avg_logprob = result.avg_logprob;
+                }
+                if result.is_final {
+                    break;
+                }
+            }
+        }
 
         //let output = self.tokenizer.decode(result.tokens.as_slice(), false)?;
 
         //println!("Output: {:?}", self.tokenizer.decode(&result.tokens, false)?);
-        let output = result.tokens[input.len()..].to_vec();
+        //let output = result.tokens[input.len()..].to_vec();
         Ok(output)
     }
 }
