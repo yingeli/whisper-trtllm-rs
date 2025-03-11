@@ -184,6 +184,11 @@ namespace tensorrt_llm::whisper {
                 putRange(0, token::BEGIN_OF_TIMESTAMP, NEG_INF);
             }
 
+            void suppressNonEndOfText() {
+                putRange(0, token::END_OF_TEXT, NEG_INF);
+                putRange(token::END_OF_TEXT + 1, NEG_INF);
+            }
+
             void suppressBlank() {
                 torch::Tensor indices = torch::tensor({token::SPACE, token::END_OF_TEXT}, torch::kLong);
                 putIndices(indices, NEG_INF);

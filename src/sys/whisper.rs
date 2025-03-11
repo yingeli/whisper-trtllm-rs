@@ -68,6 +68,7 @@ mod ffi {
             second: &[f32],
             prompt: &[u32],
             option: &TranscribeOptions,
+            stop_after_timestamp: bool,
         ) -> Result<u64>;
 
         fn await_transcribe_response(
@@ -195,9 +196,15 @@ impl Whisper {
             .map_err(|e| anyhow!("failed to get transcribe response: {e}"))
     }
 
-    pub fn enqueue_transcribe_request(&mut self, first: &[f32], second: &[f32], prompt: &[u32], options: &TranscribeOptions) -> Result<u64> {
+    pub fn enqueue_transcribe_request(&mut self, 
+        first: &[f32], 
+        second: &[f32], 
+        prompt: &[u32], 
+        options: &TranscribeOptions,
+        stop_after_timestamp: bool) -> Result<u64> 
+    {
         let ffi_options = options.to_ffi();
-        self.ptr.pin_mut().enqueue_transcribe_request(first, second, prompt, &ffi_options)
+        self.ptr.pin_mut().enqueue_transcribe_request(first, second, prompt, &ffi_options, stop_after_timestamp)
             .map_err(|e| anyhow!("failed to enqueue transcribe request: {e}"))
     }
 

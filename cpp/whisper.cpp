@@ -41,7 +41,17 @@ namespace tensorrt_llm::whisper {
             tle::StreamPtr const& streamPtr, 
             std::optional<tle::IdType> clientId)
         {
-            transcribeLogitsProcessor.process(reqId, logits, tokens, streamPtr);
+            transcribeLogitsProcessor.process(reqId, logits, tokens, streamPtr, false);
+        };
+
+        auto transcribeSegmentLogitsProcessorFn = [&transcribeLogitsProcessor](
+            tle::IdType reqId, 
+            tle::Tensor& logits, 
+            tle::BeamTokens const& tokens,
+            tle::StreamPtr const& streamPtr, 
+            std::optional<tle::IdType> clientId)
+        {
+            transcribeLogitsProcessor.process(reqId, logits, tokens, streamPtr, true);
         };
 
         auto detectLogitsProcessorFn = [](
@@ -57,6 +67,7 @@ namespace tensorrt_llm::whisper {
         auto logitsProcConfig = tle::LogitsPostProcessorConfig();
         auto logitsProcMap = std::unordered_map<std::string, tensorrt_llm::executor::LogitsPostProcessor>{
             {"transcribe", transcribeLogitsProcessorFn},
+            {"transcribeSegment", transcribeSegmentLogitsProcessorFn},
             {"detect", detectLogitsProcessorFn}
         };
         logitsProcConfig.setProcessorMap(logitsProcMap);
@@ -134,30 +145,11 @@ namespace tensorrt_llm::whisper {
         const std::span<const float> first,
         const std::optional<std::span<const float>> second,
         const tle::VecTokens prompt,
-        const TranscribeOptions &options
-    ) {
-        /*
-        auto sampleSize = first.size() + second.has_value() ? second.size() : 0;
-        auto chunk = sampleSize > CHUNK_SIZE * SAMPLING_RATE ? audio.first(CHUNK_SIZE * SAMPLING_RATE) : audio;
-
-        auto mel;
-        if first.size() < MAX_CHUNK_SIZE {
-            if (second.has_value()) {
-                auto chunk = second.size() > MAX_CHUNK_SIZE - first.size() ? 
-                    second.first(MAX_CHUNK_SIZE - first.size()) : second;
-                mel = mMel.extract(first).toType(torch::kFloat16);
-            } else {
-                mel = mMel.extract(first).toType(torch::kFloat16);
-            }
-        } else if first.size() == MAX_CHUNK_SIZE {
-            mel = mMel.extract(first).toType(torch::kFloat16);
-        } else {
-            mel = mMel.extract(first.first(MAX_CHUNK_SIZE)).toType(torch::kFloat16);
-        }
-        */
-        
+        const TranscribeOptions &options,
+        const std::optional<bool> stopAfterTimestamp
+    ) {      
         auto mel = mMel.extract(first, second).toType(torch::kFloat16);
-        
+
         int padding = 3000 - mel.size(1);
         if (padding > 0) {
             mel = torch::nn::functional::pad(
@@ -175,7 +167,11 @@ namespace tensorrt_llm::whisper {
         request.setEncoderOutputLength(encoderOutputLength);
         request.setEndId(token::END_OF_TEXT);
         request.setPadId(token::END_OF_TEXT);
-        request.setLogitsPostProcessorName("transcribe");
+        auto logitsPostProcessorName = "transcribe";
+        if (stopAfterTimestamp.has_value() && stopAfterTimestamp.value()) {
+            logitsPostProcessorName = "transcribeSegment";
+        }
+        request.setLogitsPostProcessorName(logitsPostProcessorName);
 
         auto samplingConfig = tle::SamplingConfig(options.beamWidth, options.topK);
         if (options.topP > 0) {
@@ -285,7 +281,8 @@ namespace tensorrt_llm::whisper {
         tle::IdType reqId,
         tle::Tensor& tleLogits, 
         tle::BeamTokens const& tokens,
-        tle::StreamPtr const& streamPtr
+        tle::StreamPtr const& streamPtr,
+        bool stopAfterTimestamp
     ) {
         at::cuda::CUDAStreamGuard guard(tlr::TorchUtils::stream(*streamPtr));
 
@@ -303,7 +300,7 @@ namespace tensorrt_llm::whisper {
             logits.suppressBlank();
             logits.suppressNonTimestamp();
             return;
-        } 
+        }
         
         bool checkTimestampsProb = false;
 
@@ -322,6 +319,12 @@ namespace tensorrt_llm::whisper {
                     beamLogits.suppressTimestamps();
                     //beamLogits.suppressEndOfText();
                 } else {
+                    if (stopAfterTimestamp) {
+                        // suppress all except non-endoftext
+                        beamLogits.suppressNonEndOfText();
+                        continue;
+                    }
+
                     beamLogits.suppressText();
                     beamLogits.suppressTimestamps(beamTokens[nTokens - 1]);
                     checkTimestampsProb = true;

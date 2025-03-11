@@ -201,7 +201,7 @@ impl Whisper {
 
         let (first, second) = audio.fill_chunk().await?;
         let mut inner = self.inner.lock().await;
-        let request_id = inner.enqueue_transcribe_request(first, second, input.as_slice(), options)?;
+        let request_id = inner.enqueue_transcribe_request(first, second, input.as_slice(), options, false)?;
         drop(inner);
 
         audio.fill().await?;

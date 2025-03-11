@@ -36,14 +36,15 @@ IdType Whisper::enqueue_transcribe_request(
     const rust::Slice<const float> first,
     const rust::Slice<const float> second,
     const rust::Slice<const std::uint32_t> prompt,
-    const TranscribeOptions &options
+    const TranscribeOptions &options,
+    const bool stop_after_timestamp
 ) {
     auto first_span = std::span(first.data(), first.size());
     auto second_span = std::span(second.data(), second.size());
 
     auto prompt_vec = tle::VecTokens(prompt.begin(), prompt.end());
 
-    return _inner.enqueueTranscribeRequest(first_span, second_span, prompt_vec, options);
+    return _inner.enqueueTranscribeRequest(first_span, second_span, prompt_vec, options, stop_after_timestamp);
 }
 
 TranscribeResult Whisper::await_transcribe_response(

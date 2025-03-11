@@ -42,7 +42,8 @@ class Whisper {
             const rust::Slice<const float> first,
             const rust::Slice<const float> second,
             const rust::Slice<const std::uint32_t> prompt,
-            const TranscribeOptions &options
+            const TranscribeOptions &options,
+            const bool stop_after_timestamp
         );
 
         TranscribeResult await_transcribe_response(

@@ -1,3 +1,4 @@
+#include <chrono>
 #include "mel.h"
 #include "tensorrt_llm/executor/executor.h"
 
@@ -59,7 +60,8 @@ namespace tensorrt_llm::whisper {
                 tle::IdType reqId,
                 tle::Tensor& logits, 
                 tle::BeamTokens const& tokens,
-                tle::StreamPtr const& streamPtr
+                tle::StreamPtr const& streamPtr,
+                bool stopAfterTimestamp
             );
     
         private:
@@ -87,7 +89,8 @@ namespace tensorrt_llm::whisper {
                 const std::span<const float> first,
                 const std::optional<std::span<const float>> second,
                 const tle::VecTokens prompt,
-                const TranscribeOptions &options
+                const TranscribeOptions &options,
+                const std::optional<bool> stopAfterTimestamp = std::nullopt
             );
 
             TranscribeResult awaitTranscribeResponse(
