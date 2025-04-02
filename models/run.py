@@ -62,7 +62,7 @@ def parse_arguments():
     parser.add_argument('--name',
                         type=str,
                         default="librispeech_dummy_benchmark")
-    parser.add_argument('--batch_size', type=int, default=8)
+    parser.add_argument('--batch_size', type=int, default=1)
     parser.add_argument('--num_beams', type=int, default=1)
     parser.add_argument('--debug', action='store_true')
     parser.add_argument('--enable_warmup', action='store_true')
@@ -86,7 +86,8 @@ def parse_arguments():
     )
     parser.add_argument(
         "--text_prefix",
-        default="<|startoftranscript|><|en|><|transcribe|><|notimestamps|>",
+        # default="<|startoftranscript|><|en|><|transcribe|><|notimestamps|>",
+        default="<|startoftranscript|><|en|><|transcribe|>",
         help="""Text prefix to be used for decoding. Default is for English ASR.
         """,
     )
@@ -366,7 +367,7 @@ class WhisperTRTLLM(object):
         else:
             json_config = GptJsonConfig.parse_file(engine_dir / 'decoder' /
                                                    'config.json')
-            # assert json_config.model_config.supports_inflight_batching
+            assert json_config.model_config.supports_inflight_batching
             runner_kwargs = dict(engine_dir=engine_dir,
                                  is_enc_dec=True,
                                  max_batch_size=batch_size,
@@ -412,14 +413,6 @@ class WhisperTRTLLM(object):
                     ]
                 else:
                     mel = mel.transpose(1, 2)
-                print(f"mel shape: {mel.shape}")
-                print(f"mel: {mel}")
-                print(f"encoder_output_lengths: {mel_input_lengths[0] // 2}")
-                print(f"decoder_input_ids: {decoder_input_ids}")
-                print(f"max_new_tokens: {max_new_tokens}")
-                print(f"num_beams: {num_beams}")
-                print(f"eot_id: {self.eot_id}")
-                print(f"pad_id: {self.eot_id}")
                 outputs = self.model_runner_cpp.generate(
                     batch_input_ids=decoder_input_ids,
                     encoder_input_features=mel,
@@ -436,7 +429,6 @@ class WhisperTRTLLM(object):
         for i in range(len(output_ids)):
             text = self.tokenizer.decode(output_ids[i][0]).strip()
             texts.append(text)
-        print(f"texts: {texts}")
         return texts
 
 
@@ -583,16 +575,6 @@ if __name__ == '__main__':
             normalizer=normalizer,
             mel_filters_dir=args.assets_dir,
             padding_strategy=args.padding_strategy)
-        
-    results, total_duration = decode_wav_file(
-        args.input_file,
-        model,
-        text_prefix=args.text_prefix,
-        dtype=args.dtype,
-        batch_size=args.batch_size,
-        num_beams=args.num_beams,
-        mel_filters_dir=args.assets_dir,
-        padding_strategy=args.padding_strategy)
 
     start_time = time.time()
     if args.input_file:

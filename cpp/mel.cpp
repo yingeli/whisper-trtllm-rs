@@ -20,7 +20,7 @@ LogMelSpectrogram::LogMelSpectrogram(
     // Load the npz file
     cnpy::npz_t file = cnpy::npz_load(melFilterPath);
 
-    // Load the mel_80 filter array
+    // Load the mel_128 filter array
     std::string melName = std::string("mel_") + std::to_string(nMels);
     cnpy::NpyArray melArray = file[melName];
     std::vector<int64_t> shape(melArray.shape.begin(), melArray.shape.end());
@@ -90,11 +90,14 @@ torch::Tensor LogMelSpectrogram::extract(
         mHopLength, 
         mNFFT, 
         mWindow, 
-        true, 
-        "reflect", 
-        false, 
-        true, 
-        true);
+        true, // center
+        "reflect", // pad_mode
+        false, // normalized
+        true, // onesided
+        true // return_complex
+    );
+
+    std::cout << "STFT shape: " << stft.sizes() << std::endl;
 
     auto magnitudes = stft.slice(-1, 0, stft.size(stft.dim() - 1) - 1).abs().pow(2);
 

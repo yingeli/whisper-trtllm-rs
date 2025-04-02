@@ -22,6 +22,18 @@ class LogMelSpectrogram {
         ) const;
         //torch::Tensor extract(const std::vector<float> audio, const int padding) const;
 
+        int nMels() const {
+            return mFilters.size(0);
+        }
+
+        int nFFT() const {
+            return mNFFT;
+        }
+
+        int hopLength() const {
+            return mHopLength;
+        }
+
     private:
         torch::Tensor mFilters;
         torch::Tensor mWindow;

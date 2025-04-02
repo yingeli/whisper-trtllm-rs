@@ -1,6 +1,6 @@
 import whisper
 import time
 
-model = whisper.load_model("turbo")
-result = model.transcribe("/home/coder/whisper-trtllm-rs/models/assets/oppo-th-th.wav", beam_size=5, temperature=0.0)
+model = whisper.load_model("large-v2", device="cuda")
+result = model.transcribe("/home/coder/whisper-trtllm-rs/audio/whisper.wav", beam_size=5)
 print(result)

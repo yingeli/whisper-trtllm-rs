@@ -23,3 +23,5 @@ az storage blob upload-batch \
 
 
 export TLLM_LOG_LEVEL=ERROR
+
+export LD_LIBRARY_PATH=/usr/local/lib/python3.12/dist-packages/tensorrt_llm/libs:$LD_LIBRARY_PATH

@@ -2,7 +2,7 @@
 
 pip install -r requirements.txt
 
-INFERENCE_PRECISION=float16
+INFERENCE_PRECISION=float32
 MAX_BEAM_WIDTH=1
 MAX_BATCH_SIZE=4
 checkpoint_dir=whisper_turbo_weights
@@ -19,11 +19,8 @@ trtllm-build  --checkpoint_dir ${checkpoint_dir}/encoder \
               --moe_plugin disable \
               --max_batch_size ${MAX_BATCH_SIZE} \
               --gemm_plugin disable \
-              --bert_attention_plugin ${INFERENCE_PRECISION} \
               --max_input_len 3000 --max_seq_len=3000 \
-              --context_fmha disable \
-              --kv_cache_type continuous \
-              --remove_input_padding disable
+              --context_fmha disable
 
 trtllm-build  --checkpoint_dir ${checkpoint_dir}/decoder \
               --output_dir ${output_dir}/decoder \
@@ -33,18 +30,15 @@ trtllm-build  --checkpoint_dir ${checkpoint_dir}/decoder \
               --max_seq_len 448 \
               --max_input_len 224 \
               --max_encoder_input_len 3000 \
-              --gemm_plugin ${INFERENCE_PRECISION} \
-              --bert_attention_plugin ${INFERENCE_PRECISION} \
-              --gpt_attention_plugin ${INFERENCE_PRECISION} \
-              --context_fmha disable \
-              --use_paged_context_fmha enable 
-
+              --context_fmha disable
 
 python3 run.py --name single_wav_test --engine_dir $output_dir --input_file assets/1221-135766-0002.wav --enable_warmup --use_py_session
 
 python3 run.py --name single_wav_test --engine_dir $output_dir --input_file assets/meeting-30s.wav --use_py_session --enable_warmup
 
-python3 run.py --name single_wav_test --engine_dir $output_dir --input_file ../audio/oppo-en-30s.wav --enable_warmup  
+python3 run.py --name single_wav_test --engine_dir $output_dir --input_file ../audio/oppo-en-us.wav --use_py_session --enable_warmup  
+
+python3 run.py --name single_wav_test --engine_dir $output_dir --input_file ../audio/oppo-en-us.wav --enable_warmup 
 
 trtllm-build  --checkpoint_dir ${checkpoint_dir}/decoder \
               --output_dir ${output_dir}/decoder \

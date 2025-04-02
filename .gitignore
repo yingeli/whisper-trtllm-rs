@@ -32,4 +32,6 @@ models/whisper*/
 models/tmp/
 models/model.cache
 
+audio/
+
 

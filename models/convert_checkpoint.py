@@ -54,11 +54,11 @@ def parse_arguments():
     parser.add_argument('--dtype',
                         type=str,
                         default='float16',
-                        choices=['float32', 'bfloat16', 'float16'])
+                        choices=['float32', 'bfloat16', 'float16', 'float8'])
     parser.add_argument('--logits_dtype',
                         type=str,
                         default='float16',
-                        choices=['float16', 'float32'])
+                        choices=['float8', 'float16', 'float32'])
     parser.add_argument('--output_dir',
                         type=str,
                         default='tllm_checkpoint',
