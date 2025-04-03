@@ -1,6 +1,7 @@
 mod sys;
 mod tokenizer;
 mod model;
+mod features;
 mod audio;
 mod whisper;
 //mod transcript;

@@ -32,7 +32,6 @@ LogMelSpectrogram::LogMelSpectrogram(
 torch::Tensor LogMelSpectrogram::extract(
     const std::span<const float> first, 
     const std::optional<std::span<const float>> second,
-    const std::optional<size_t> skip,
     const std::optional<bool> padding
 ) const {
     auto device = filters_.device();
@@ -95,11 +94,7 @@ torch::Tensor LogMelSpectrogram::extract(
     );
 
     auto n_frames = total_size + hop_length_ > n_fft_ / 2 ? (total_size + hop_length_ - n_fft_ / 2) / hop_length_ : 0;
-    auto start = 0;
-    if (skip.has_value()) {
-        start = skip.value();
-    }
-    auto magnitudes = stft.slice(-1, start, n_frames).abs().pow(2);
+    auto magnitudes = stft.slice(-1, 0, n_frames).abs().pow(2);
     // auto magnitudes = stft.slice(-1, 0, stft.size(stft.dim() - 1) - 1).abs().pow(2);
 
     torch::Tensor mel_spec = torch::matmul(filters_, magnitudes);

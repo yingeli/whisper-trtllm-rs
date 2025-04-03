@@ -86,8 +86,7 @@ def parse_arguments():
     )
     parser.add_argument(
         "--text_prefix",
-        # default="<|startoftranscript|><|en|><|transcribe|><|notimestamps|>",
-        default="<|startoftranscript|><|en|><|transcribe|>",
+        default="<|startoftranscript|><|en|><|transcribe|><|notimestamps|>",
         help="""Text prefix to be used for decoding. Default is for English ASR.
         """,
     )
@@ -367,7 +366,7 @@ class WhisperTRTLLM(object):
         else:
             json_config = GptJsonConfig.parse_file(engine_dir / 'decoder' /
                                                    'config.json')
-            assert json_config.model_config.supports_inflight_batching
+            # assert json_config.model_config.supports_inflight_batching
             runner_kwargs = dict(engine_dir=engine_dir,
                                  is_enc_dec=True,
                                  max_batch_size=batch_size,

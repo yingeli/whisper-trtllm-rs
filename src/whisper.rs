@@ -11,7 +11,7 @@ use tokio::io::AsyncRead;
 use tokio::time::{sleep, Duration};
 //use super::transcript::{Transcript, Segment};
 use futures::stream::{Stream, StreamExt};
-//use super::audio::Audio;
+use super::features::Audio;
 use super::sys::LogMelSpectrogram;
 //use super::transcript::{Segment};
 use async_stream::stream;
@@ -60,7 +60,8 @@ impl Whisper {
     {
         let mut audio = Audio::new(&self.extractor, stream);
 
-        let features = audio.chunk().await?;
+        let features = audio.features(Self::CHUNK_SIZE).await?
+            .ok_or_else(|| anyhow!("No audio data"))?;
 
         let language_token = self.model.detect_language(&features).await?;
 
@@ -121,10 +122,10 @@ impl Whisper {
     pub fn log_mel(&self) {
         let first = vec![0.0; 30 * 16000 + 1];
         let second = vec![0.0; 30 * 16000];
-        let features = self.extractor.extract(&first, &second, 2).unwrap();
+        let features = self.extractor.extract(&first, &second).unwrap().slice_to_end(2);
         println!("features: {:?}", features.len());
 
-        let features = self.extractor.extract_final(&first, &second, 2).unwrap();
+        let features = self.extractor.extract_final(&first, &second).unwrap().slice_to_end(2);
         println!("features: {:?}", features.len());
     }
 }

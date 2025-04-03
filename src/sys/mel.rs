@@ -25,7 +25,6 @@ pub(crate) mod ffi {
             self: &LogMelSpectrogram,
             first: &[f32],
             second: &[f32],
-            skip: usize,
             padding: bool,
         ) -> Result<UniquePtr<Features>>;
 
@@ -83,15 +82,15 @@ impl LogMelSpectrogram {
         self.required_overlap_frames
     }
 
-    pub fn extract(&self, first: &[f32], second: &[f32], skip: usize) -> Result<Features> {
-        let ptr = self.ptr.extract(first, second, skip, false)
+    pub fn extract(&self, first: &[f32], second: &[f32]) -> Result<Features> {
+        let ptr = self.ptr.extract(first, second, false)
             .map_err(|e| anyhow!("failed to extract log mel spectrogram: {}", e))?;
 
         Ok(ptr.into())
     }
 
-    pub fn extract_final(&self, first: &[f32], second: &[f32], skip: usize) -> Result<Features> {
-        let ptr = self.ptr.extract(first, second, skip, true)
+    pub fn extract_final(&self, first: &[f32], second: &[f32]) -> Result<Features> {
+        let ptr = self.ptr.extract(first, second, true)
             .map_err(|e| anyhow!("failed to extract log mel spectrogram: {}", e))?;
 
         Ok(ptr.into())

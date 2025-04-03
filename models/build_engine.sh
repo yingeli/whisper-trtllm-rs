@@ -3,8 +3,8 @@
 pip install -r requirements.txt
 
 INFERENCE_PRECISION=float16
-MAX_BEAM_WIDTH=1
-MAX_BATCH_SIZE=4
+MAX_BEAM_WIDTH=5
+MAX_BATCH_SIZE=8
 checkpoint_dir=whisper_turbo_weights
 output_dir=whisper_turbo
 
@@ -31,20 +31,21 @@ trtllm-build  --checkpoint_dir ${checkpoint_dir}/decoder \
               --max_beam_width ${MAX_BEAM_WIDTH} \
               --max_batch_size ${MAX_BATCH_SIZE} \
               --max_seq_len 448 \
-              --max_input_len 224 \
+              --max_input_len 226 \
               --max_encoder_input_len 3000 \
               --gemm_plugin ${INFERENCE_PRECISION} \
               --bert_attention_plugin ${INFERENCE_PRECISION} \
               --gpt_attention_plugin ${INFERENCE_PRECISION} \
               --context_fmha disable \
-              --use_paged_context_fmha enable 
+              --kv_cache_type continuous \
+              --remove_input_padding disable
 
 
 python3 run.py --name single_wav_test --engine_dir $output_dir --input_file assets/1221-135766-0002.wav --enable_warmup --use_py_session
 
 python3 run.py --name single_wav_test --engine_dir $output_dir --input_file assets/meeting-30s.wav --use_py_session --enable_warmup
 
-python3 run.py --name single_wav_test --engine_dir $output_dir --input_file ../audio/oppo-en-30s.wav --enable_warmup  
+python3 run.py --name single_wav_test --engine_dir $output_dir --input_file ../audio/oppo-en-30s.wav --enable_warmup --use_py_session
 
 trtllm-build  --checkpoint_dir ${checkpoint_dir}/decoder \
               --output_dir ${output_dir}/decoder \

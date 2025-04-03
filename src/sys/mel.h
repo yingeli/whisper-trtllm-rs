@@ -25,21 +25,18 @@ class LogMelSpectrogram {
         torch::Tensor extract(
             const std::span<const float> first, 
             const std::optional<std::span<const float>> second,
-            const std::optional<size_t> skip = std::nullopt,
             const std::optional<bool> padding = false
         ) const;
 
         inline std::unique_ptr<Features> extract(
             const rust::Slice<const float> first, 
             const rust::Slice<const float> second,
-            const size_t skip = 0,
             const bool padding = false
         ) const {
             return std::make_unique<Features>(
                 extract(
                     std::span<const float>(first.data(), first.size()), 
                     std::span<const float>(second.data(), second.size()),
-                    skip,
                     padding
                 )
             );
